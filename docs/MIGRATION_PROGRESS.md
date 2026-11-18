@@ -1,0 +1,50 @@
+# Progres migrasi EWO
+
+Status 18 November 2026 WIB. Tahap A terverifikasi lokal dan tahap B berjalan sebagian. Target memakai CodeIgniter 4.7.6. Dashboard CI4 yang terlindungi masih mengembalikan HTTP 501 setelah login yang valid. Status ini menandai bahwa dashboard belum tersedia.
+
+| Tahap atau modul | Status | Perbandingan dan hasil uji |
+| --- | --- | --- |
+| A. Fondasi | Lulus lokal | Spark memuat route native. Composer strict validate lulus dan paket yang terkunci tetap 4.7.6. PHP 8.4.21 dan 8.5.12 menjalankan autentikasi dengan extensi distribusinya masing-masing. Tidak memakai system CI3. |
+| B. Login admin, sesi, logout | Implementasi awal, lulus fixture | Form memakai email dan password serta jalur POST legacy. Verifikasi bcrypt dan phpass P/H, password salah, akun diblokir, user hilang, CSRF, sesi dan logout lulus. Smoke Chrome dengan PHP 8.5 merender heading login dan form. |
+| B. Permission dan aktivitas | Implementasi awal, lulus fixture | Role ditemukan lewat role key, admin override hanya jika baris role ada, role biasa perlu flag aktif. HTTP menguji admin_panel, unit menguji add_post. last_seen, IP dan users_logs diperiksa pada SQLite sintetis. |
+| B. User management, akun, remember-me | Belum dimigrasikan | Role/dept/corp management, user CRUD, reset, verifikasi, profil dan integrasi sosial memerlukan parity tambahan. Jalur pergantian role dan password lama meminta permission users, sementara daftar non-admin scoped per corporation. Perubahan akun lintas corporation dan role yang boleh diberikan perlu kebijakan yang disetujui. Cookie remember-me lama tidak menjadi dasar autentikasi target. |
+| C. Incoming, Outgoing, status, assignment, history | Belum dimigrasikan | Menunggu penutupan tahap B serta fixture parity transaksi WO. |
+| D. Dashboard dan master data | Belum dimigrasikan | Route dashboard hanya entry point yang dilindungi. Perhitungan, tabel dan CRUD belum dibangun. |
+| E. Reports In/Out, filter, pagination dan ekspor | Belum dimigrasikan | Guard add_post diuji sebagai predikat. Route, menu, query dan PDF/Excel belum tersedia di target. Jasper perlu kebijakan akses dan pembandingan template. |
+| F. UI/UX | Baseline login saja | CSS dan font baseline admin login dipakai. Logo dari penyimpanan legacy, terjemahan dinamis, sidebar, dan responsivitas seluruh modul belum diverifikasi. |
+
+## File yang ditambahkan atau diubah
+
+- Audit dan laporan ada di docs/MIGRATION_PLAN.md dan docs/MIGRATION_PROGRESS.md.
+- Bootstrap dan dependensi ada di composer.json, composer.lock, app/Config/Paths.php, dan phpunit.dist.xml.
+- app/Config/App.php, Routes.php, Filters.php, Security.php, Session.php, Database.php, dan Services.php mengatur route, CSRF, sesi dan adapter autentikasi. Pada .env target, hanya skema URL dari baseURL lokal yang dilengkapi.
+- app/Controllers/AuthController.php dan AdminController.php, app/Filters/AdminAccess.php, app/Models/AuthRepository.php, app/Libraries/AdminIdentity.php dan LegacyPassword.php memegang implementasi awal auth.
+- app/Views/admin/login.php, app/Views/admin/pending.php, app/Language/en/Auth.php, serta CSS/ikon yang dipakai login di public/assets.
+- tests/unit/AdminIdentityTest.php, tests/integration/auth-http.cjs dan tests/integration/auth-http-fixture.php menjalankan fixture sintetis.
+
+## Hasil pengujian
+
+- PHP 8.4.21 dan PHP 8.5.12, masing-masing lulus lint 19 file PHP serta 4 unit test dengan 28 assertion. Suite terarah tidak menjalankan test migration bawaan starter.
+- Kedua runtime juga lulus HTTP pada listener lokal terisolasi. Kasus mencakup guest, CSRF, login, kesalahan password, akun diblokir, izin dashboard, catatan aktivitas, dan logout. CI3 Auth_model dan Bcrypt asli dibandingkan dengan baris user/role SQLite sintetis yang identik. Wrapper CI3 hanya memuat model dan library dengan adapter fixture, tanpa bootstrap aplikasi.
+- PHP 8.5.12 berasal dari arsip Windows NTS resmi yang diperiksa SHA256. Browser Chrome pada runtime ini merender heading login dan CSRF form. [Distribusi Windows PHP](https://www.php.net/downloads.php?os=windows)
+- Belum diuji pada MySQL/MariaDB, dataset deployment, storage media asli, provider email/sosial, Jasper atau keseluruhan WO. Pemeriksaan SQLite belum membuktikan perilaku collation/MySQL.
+
+## Menjalankan kembali pengujian
+
+Jalankan dari eworeb dengan PHP 8.4 atau 8.5 dan extension intl, mbstring, dan sqlite3. Untuk distribusi PHP portabel di Windows, pakai extension directory distribusi tersebut.
+
+```powershell
+php vendor/phpunit/phpunit/phpunit --no-coverage --no-logging --do-not-cache-result tests/unit/AdminIdentityTest.php
+node tests/integration/auth-http.cjs C:/path/to/php.exe
+```
+
+Pengujian HTTP memakai file SQLite sintetis di temp, loopback dan cookie sesi fixture yang berbeda. EWO_TEST_BROWSER dapat berisi path Chrome untuk smoke render. Runtime aplikasi hanya memakai grup database.ewo dan meminta ewo.sessionKey terpisah. Grup itu masih kosong, sehingga POST login biasa merespons 503 sampai instance yang disetujui dikonfigurasi. Pengujian memberikan konfigurasi fixture hanya kepada proses anak.
+
+## Selisih dan keputusan yang masih terbuka
+
+- Target memakai nama cookie sesi eworeb_session dan meregenerasi ID saat login agar sesi dua aplikasi tidak tercampur. Login gagal dan logout kembali ke admin/login. CI3 memakai referrer. Validasi awal menegakkan batas panjang, sedangkan parity transformasi xss_clean dan kasus input nonstandar belum dibuktikan. Periksa sebelum menerima kompatibilitas penuh.
+- Redirect tanpa admin_panel mengikuti arah root legacy, yang bisa berulang karena root juga dilindungi. Perlu tujuan penolakan akses yang disetujui.
+- CI4 FileHandler pada PHP 8.5 Windows gagal untuk path sesi yang diberikan melalui path temp dengan prefix extended-length. Path writable/session bawaan target lulus. Runner mengisolasi cookie fixture dan memakai path bawaan tersebut.
+- Sebelum menutup tahap B, putuskan kebijakan remember-me serta batas pergantian role/password, akses lintas corporation, dan penanganan redirect legacy. Sebelum tahap E, putuskan akses dan kompatibilitas Jasper serta maksud route reportsbyfinishdate.
+- Sumber CI3 tetap dibaca saja. Tidak ada dump operasional yang dijalankan, migration, seeder, koneksi produksi, commit, push, atau deployment.
+
