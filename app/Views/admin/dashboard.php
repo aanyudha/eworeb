@@ -12,6 +12,7 @@ $colors = ['New' => 'red', 'Pending' => 'yellow', 'Waiting' => 'aqua', 'Progress
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="<?= esc(base_url('favicon.ico'), 'attr') ?>">
     <title>Dashboard - <?= esc($applicationName) ?></title>
     <?php foreach (['vendor/bootstrap/css/bootstrap.min.css', 'admin/css/AdminLTE.min.css', 'admin/css/_all-skins.min.css', 'admin/css/dashboard.css'] as $asset): ?>
         <link rel="stylesheet" href="<?= esc(base_url('assets/' . $asset), 'attr') ?>">
@@ -26,7 +27,7 @@ $colors = ['New' => 'red', 'Pending' => 'yellow', 'Waiting' => 'aqua', 'Progress
                 <span aria-hidden="true">&#9776;</span>
             </button>
             <div class="navbar-custom-menu">
-                <ul class="nav navbar-nav"><li><a href="<?= esc(site_url('logout'), 'attr') ?>">Logout</a></li></ul>
+                <ul class="nav navbar-nav"><li><a href="<?= esc(site_url('workspace'), 'attr') ?>">React workspace</a></li><li><a href="<?= esc(site_url('logout'), 'attr') ?>">Logout</a></li></ul>
             </div>
         </nav>
     </header>

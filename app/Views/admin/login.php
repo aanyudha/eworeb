@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="<?= esc(base_url('favicon.ico'), 'attr') ?>">
     <title>Login - Admin <?= esc($settings['site_title'] ?? 'EWO') ?></title>
     <?php foreach (['vendor/bootstrap/css/bootstrap.min.css', 'admin/css/AdminLTE.min.css', 'admin/css/_all-skins.min.css', 'admin/css/custom.css'] as $style): ?>
         <link rel="stylesheet" href="<?= esc(base_url('assets/' . $style), 'attr') ?>">

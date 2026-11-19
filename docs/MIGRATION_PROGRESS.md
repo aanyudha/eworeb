@@ -1,5 +1,48 @@
 # Progres migrasi EWO
 
+## Login database dan workspace React, 19 November 2026 WIB
+
+### Pemeriksaan database dan status login
+
+- Apache lokal sudah menyajikan `/eworeb/admin/login`. GET `/eworeb/workspace/incoming` sebagai guest diarahkan ke login. GET API tanpa sesi mengembalikan 401.
+- `.env` sebelumnya hanya berisi grup `database.default`. Auth memakai `database.ewo` dan `ewo.sessionKey`. Saya menambahkan kunci 256-bit acak pada `.env` yang diabaikan Git. Tidak ada kredensial yang dipindahkan dari source atau template.
+- Dump yang ditemukan pada source read-only adalah `ewohotel_tntrm.sql`, `final_db_deploy.sql`, dan `user.sql`. Metadata SQL diverifikasi tanpa mengeksekusi dump. `ewohotel_tntrm.sql` memiliki `departments`, sedangkan dump `final_db_deploy.sql` dan `user.sql` memiliki cakupan lebih sempit.
+- Probe metadata SELECT-only di MySQL loopback port 3310 menemukan database `eworeb` dengan admin aktif. Tabel `roles_permissions` dan `users_logs` sesuai kolom yang diperiksa. `users.dept_id`, `posts.corp_id`, `posts.dept_id`, `posts.is_scheduled` dan tabel `departments` tidak tersedia. Keberadaan data membuktikan skema telah diisi, tanpa memastikan dump mana yang dipakai.
+- Skema `ewohotel_tentrem` lolos pemeriksaan kolom dasar dashboard. Statusnya sebagai salinan uji atau data operasional belum dikonfirmasi. Grup `database.ewo` lokal belum diaktifkan. Login Apache dengan database existing masih tertahan sampai pemilik menetapkan salinan yang kompatibel dan terisolasi. Import, perubahan skema, dan test login pada MySQL existing tidak dilakukan.
+
+### Perubahan dan status modul
+
+| Bagian | File dan hasil |
+| --- | --- |
+| Workspace | `frontend/package.json`, lockfile, `vite.config.ts`, `tsconfig.json`, `.gitignore`, dan `src/`. React menyediakan shell responsif, navigasi, filter, KPI, tabel, drawer, dan konfirmasi logout. |
+| CI4 | `app/Config/Routes.php`, `app/Controllers/WorkspaceController.php`, `app/Controllers/AdminController.php`, `app/Filters/AdminAccess.php`, dan `app/Views/admin/{dashboard,workspace}.php`. Dashboard klasik dan SPA memakai query yang sama. |
+| Aset dan config | Build lokal di `public/workspace-assets` diabaikan lewat `.gitignore`. Secret sesi hanya ada pada `.env` lokal. |
+| Pengujian | `tests/integration/{auth-http.cjs,auth-http-fixture.php,browser.cjs,subfolder-router.php}` menguji halaman klasik, API, workspace dan mount subfolder dengan database sintetis. |
+| Lanjutan | Transaksi WO, Reports, ekspor, dan master data belum diimplementasikan di React. |
+
+### Build dan pengujian ulang
+
+```powershell
+npm.cmd --prefix frontend ci
+npm.cmd --prefix frontend run lint
+npm.cmd --prefix frontend run build
+$env:EWO_LEGACY_SOURCE = 'C:/xampp8212/htdocs/ewo'
+$env:EWO_TEST_BROWSER = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+node tests/integration/auth-http.cjs C:/xampp8512/php/php.exe
+$env:EWO_TEST_SUBFOLDER = '1'
+node tests/integration/auth-http.cjs C:/xampp8512/php/php.exe
+```
+
+Jalankan dari root target. `build:watch` dapat membangun ulang aset di origin CI4 yang sama. Mode subfolder menjalankan router fixture loopback dengan prefiks `/eworeb`. Database fixture SQLite, pengguna sintetis, dan konfigurasi proses anak terpisah dari MySQL aplikasi. Untuk operasional, gunakan `http://localhost/eworeb/workspace` setelah grup koneksi yang berhak disiapkan. Periksa nilai grup `database.ewo.*` menggunakan contoh `env`.
+
+### Hasil verifikasi
+
+- PHP 8.5.12 lint pada file PHP yang berubah dan PHPUnit 10.5.67. Unit/session existing lulus 7 tes dengan 32 assertion.
+- Frontend TypeScript lint dan Vite build lulus. Bundler mencatat peringatan direktif use client dari React Router dan TanStack Query saat bundling SPA.
+- Spark di root dan server fixture dengan mount /eworeb lulus integrasi HTTP dan Chrome. Login/logout, CSRF, guest, role tanpa permission, corporation/department scope, navigasi tanpa reload, back/forward, URL langsung, refresh, tampilan 1280/820/390 px, filter, pencarian, sort dan drawer diuji tanpa error JS atau aset.
+- Enam skenario dashboard dari CI3 cocok dengan API CI4. Fingerprint isi 134 baris WO fixture tetap sama, dan GET API tidak menambah users_logs.
+- Git status, diff --check, dan diff --stat dipakai dalam mode baca-saja. Tidak ada perubahan branch, commit, push, SQL import, migration, atau deployment.
+
 ## Runtime dan dashboard, 19 November 2026 WIB
 
 Target lokal kini `C:/xampp8512/htdocs/eworeb`. Catatan 18 November di bawah adalah riwayat checkout sebelumnya. Login admin sekarang membuka dashboard yang menghitung data setelah pemeriksaan `admin_panel`. Apache utama belum diberi Alias. Semua verifikasi berjalan pada fixture terisolasi.

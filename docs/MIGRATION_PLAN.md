@@ -308,3 +308,14 @@ Target aktif adalah `C:/xampp8512/htdocs/eworeb`. Sumber CI3 tetap di `C:/xampp8
 Semua hitungan memakai category_id 1 New, 5 Pending, 3 Waiting, 2 Progress, dan 4 Closed. Syarat visibility, status publikasi, dan jadwal tetap 1, 1, dan 0. Pengelompokan SQL mempertahankan hitungan CI3 dengan SELECT saja. Aktivitas autentikasi tetap dicatat pada jalur existing. Sidebar mengarah ke dashboard, bagian statistik yang bisa dilihat, dan logout.
 
 Panel Engineering, HK dan IT pada tampilan admin CI3 menunjuk ketiga-tiganya ke angka Outgoing agregat. Tampilan CI4 menyajikan angka tersebut sebagai agregat Outgoing dan menunda atribusi departemen admin sampai definisinya disepakati. Query Incoming global sudah tersedia di CI3, tetapi angka itu sebelumnya tidak ditampilkan untuk admin. Scope agregat Incoming CI4 mengikuti query CI3. Rekap 7/8 dan cabang akun biasa mengikuti panel yang ditampilkan CI3.
+
+
+## Workspace React, 19 November 2026 WIB
+
+Workspace CI4 merender shell pada `/workspace` serta jalur turunan. React Router menerima basename dari CI4. Vite membangun manifest dan aset ber-hash ke `public/workspace-assets`. PHP memuat entry dan CSS dari manifest sehingga route langsung, refresh, dan pemasangan Apache di `/eworeb` memakai URL aset yang sama. Halaman login dan dashboard klasik tetap tersedia. [Panduan Vite](https://vite.dev/guide/) · [BrowserRouter](https://reactrouter.com/api/declarative-routers/BrowserRouter)
+
+TanStack Query membaca `GET /api/v1/dashboard` dari origin yang sama. Guard memverifikasi sesi dan `admin_panel` serta repository memeriksa scope yang sama dengan dashboard klasik. API mengembalikan 401/403 dan private no-store. Hasil filter memakai `corpnya`, `role`, dan `department` existing. Role selain admin mengikuti cakupan repository. Request API tidak menambah aktivitas audit. Route HTML tetap memakai jalur audit existing. Auth, logout, cookie HttpOnly, dan CSRF tetap dilayani CI4.
+
+TanStack Table memakai agregat dashboard untuk pencarian, sort, pagination dan drawer. Kartu serta grafik menampilkan angka yang sama dengan repository. Navigasi utama hanya menyediakan halaman yang didukung untuk akun tersebut. Menu notifikasi menunjukkan bahwa integrasi notifikasi belum tersedia, tanpa membuat notifikasi fiktif.
+
+Tahap selanjutnya tetap transaksi Work Order, Reports In/Out dengan `add_post`, lalu master data. Scope dan kompatibilitas DB harus dituntaskan sebelum menambahkan transaksi. Perbedaan rekap IT Waiting dan atribusi departemen admin dari tahap sebelumnya tetap berlaku.

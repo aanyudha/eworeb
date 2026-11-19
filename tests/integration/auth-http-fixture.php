@@ -7,6 +7,10 @@ if (PHP_SAPI !== 'cli' || !isset($argv[1])) {
 }
 $db = new SQLite3($argv[1]);
 $db->enableExceptions(true);
+if (($argv[2] ?? '') === 'activity-count') {
+    echo $db->querySingle('SELECT COUNT(*) FROM users_logs');
+    exit;
+}
 if (($argv[2] ?? '') === 'snapshot') {
     $rows = $db->query('SELECT * FROM posts ORDER BY id');
     $hash = hash_init('sha256');
