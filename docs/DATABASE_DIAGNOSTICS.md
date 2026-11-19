@@ -11,9 +11,9 @@ The development CLI command checks the effective CI4 connection group and sessio
 
 | Evidence on 19 November 2026 WIB | Result |
 | --- | --- |
-| CLI | Root .env readable, 64-character hexadecimal key set, database.ewo.database and database.ewo.username empty. The default group is populated. |
-| Apache | Login page available. A CSRF-valid submission with empty credentials returns 503 for missing configuration before authentication. |
-| MySQL TCP 3310 | Metadata query succeeded. eworeb lacks users.dept_id, posts.corp_id, posts.dept_id and posts.is_scheduled. |
-| ewohotel_tentrem | All seven table and column checks passed. Its suitability as an isolated test copy is pending owner confirmation. |
+| CLI | Root .env readable. The effective database.ewo fields are populated, the configured schema is eworeb, and the key matches the expected 64-hex format. The inventory default group is also populated. |
+| Apache | The login form and assets are served under /eworeb/. A CSRF-valid empty form advances past the configuration guard to field validation, confirming required settings are present in the web runtime. |
+| MySQL TCP 3310 | Both the configured group and the inventory group connected. The configured schema eworeb lacks users.dept_id, posts.corp_id, posts.dept_id and posts.is_scheduled. The command exits 1 for incomplete schema compatibility. |
+| ewohotel_tentrem | All seven table and column checks passed. The 29 required columns shared with eworeb match in type, nullability, and collation. Suitability for write-capable tests is pending owner confirmation. |
 
-Set the dedicated group in the ignored local .env when a compatible, isolated database is approved. A missing group gives the existing configuration 503. A database failure during login now gives a separate generic 503. Fixture tests verify CLI substitution, authentication and dashboard access. Metadata results do not constitute a MySQL authentication test. No schema was selected automatically.
+Set the dedicated group in the ignored local .env when a compatible, isolated database is approved. A missing group gives the existing configuration 503. A database failure during login now gives a separate generic 503. Fixture tests verify CLI substitution, authentication and dashboard access. Successful MySQL application login and dashboard parity on MySQL remain unverified. Browser URLs under localhost/eworeb/ resolved to the localhost origin with the configured alternate hostname.

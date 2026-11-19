@@ -33,3 +33,5 @@ The admin REST routes are GET/POST `articles`, GET/PUT `articles/{id}`, and POST
 Articles are stored in `writable/knowledgebase/articles.json`. This is separate from Work Orders and is outside the document root. Only server-generated filenames are written. Writers lock a shared lock file, validate the document and replace it atomically from a temporary file in the same directory. The ID, state, and timestamps are server-managed. The repository validates slug, text, cardinality, categories, visibility and related slugs. No example content is published in live storage.
 
 Run `tests/integration/auth-http.cjs` with `EWO_TEST_BROWSER` set to a Chrome executable. The runner stores articles and SQLite fixture data in a private temporary directory. Set `EWO_TEST_SUBFOLDER=1` to verify paths under `/eworeb`.
+
+For the proposed MySQL schema and JSON transition, see [Knowledge Base MySQL design](KNOWLEDGE_BASE_MYSQL.md). The running application uses articles.json.

@@ -1,5 +1,13 @@
 # Progres migrasi EWO
 
+## Integrasi database dan kesiapan shared hosting, 19 November 2026 WIB
+
+- Grup EWO dan session key efektif tersedia pada CLI. Apache melewati guard konfigurasi saat form kosong dengan CSRF valid diserahkan. Browser memakai URL dan aset same-origin di localhost/eworeb/.
+- spark ewo:diagnose --inventory berhasil terhubung ke MySQL port 3310 dan keluar dengan status 1 karena skema eworeb belum kompatibel. users membutuhkan dept_id dan posts membutuhkan corp_id, dept_id serta is_scheduled. ewohotel_tentrem lulus metadata tujuh tabel wajib. Pemeriksaan dilakukan baca-saja. Login dan parity MySQL masih menunggu database uji terisolasi yang disetujui.
+- npm ci, lint dan build lulus. Manifest dan semua CSS/JS hasil build tersedia di public/workspace-assets. Dependensi Composer produksi lulus pemeriksaan platform PHP 8.5.12. PHPUnit lulus 7 tes dan 32 assertion.
+- Apache sementara dengan PHP 8.5.12, document root terpisah, subfolder dan SQLite sintetis lulus regresi HTTP dan Chrome untuk login, CSRF, sesi, izin, logout, dashboard klasik, Workspace, Knowledge Center, aset, API, direct link dan refresh. Enam skenario dashboard cocok dengan CI3. Aktivitas login tercatat pada fixture dan snapshot WO tetap identik. URL yang mengarah ke file privat ditolak.
+- Panduan [shared hosting](SHARED_HOSTING_DEPLOYMENT.md) mencakup paket aset, Composer, PHP, pemisahan file publik, konfigurasi dan uji setelah upload. [Rancangan KB MySQL](KNOWLEDGE_BASE_MYSQL.md) dan proposal SQL tersedia untuk review. Runtime KB tetap menggunakan JSON. Tidak ada perubahan runtime PHP atau skema database pada tahap ini.
+
 ## Knowledge Center dan diagnosis database, 19 November 2026 WIB
 
 - Root / sekarang membuka Knowledge Center publik. /kb dan /kb/{slug} memakai entry React/Vite tersendiri. Admin klasik, workspace, dashboard API dan autentikasi existing dipertahankan. Workspace admin mendapat editor artikel dengan draft, review, publikasi manual, penarikan, dan daftar kategori.

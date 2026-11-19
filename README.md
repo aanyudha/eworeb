@@ -1,4 +1,18 @@
-# CodeIgniter 4 Application Starter
+# EWO Reborn
+
+## Build frontend dan shared hosting
+
+Dari root project, jalankan dengan Node.js LTS yang kompatibel dengan Vite 7.
+
+```powershell
+npm.cmd --prefix frontend ci
+npm.cmd --prefix frontend run lint
+npm.cmd --prefix frontend run build
+```
+
+Paket build berada di `public/workspace-assets/`. Sertakan `manifest.json` dan seluruh folder aset saat menyiapkan salinan hosting. Apache melayani folder `public/` dan menjalankan CodeIgniter melalui PHP. Node.js hanya diperlukan saat build.
+
+Ikuti [panduan shared hosting](docs/SHARED_HOSTING_DEPLOYMENT.md) untuk Composer, document root, subfolder, konfigurasi environment dan verifikasi setelah upload.
 
 ## What is CodeIgniter?
 
