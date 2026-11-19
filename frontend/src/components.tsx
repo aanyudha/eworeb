@@ -18,14 +18,18 @@ export type DashboardData = {
 }
 const number = new Intl.NumberFormat()
 
-export function Sidebar({ sections, onNavigate }: { sections: { path: string; label: string; preserveSearch?: boolean }[]; onNavigate: () => void }) {
+type WorkspaceNavItem = { path: string; label: string; preserveSearch?: boolean; unavailable?: string }
+
+export function Sidebar({ sections, onNavigate }: { sections: WorkspaceNavItem[]; onNavigate: () => void }) {
   const { search } = useLocation()
   return <aside className="sidebar" id="workspace-navigation">
-    <div className="brand"><span className="brand-mark"><Activity size={20} /></span><span>EWO <b>Reborn</b><small>Operations workspace</small></span></div>
+    <div className="brand"><span className="brand-mark">{document.getElementById('root')?.dataset.brandLogo ? <img className="brand-logo" src={document.getElementById('root')!.dataset.brandLogo} alt="" /> : <Activity size={20} />}</span><span>EWO <b>Reborn</b><small>Operations workspace</small></span></div>
     <p className="nav-caption">WORKSPACE</p>
     <nav aria-label="Workspace navigation">
       <NavLink to={{ pathname: "/", search }} end onClick={onNavigate}><LayoutDashboard size={17} />Dashboard</NavLink>
-      {sections.map(({ path, label, preserveSearch = true }) => <NavLink key={path} to={{ pathname: path, search: preserveSearch ? search : undefined }} onClick={onNavigate}><Activity size={17} />{label}</NavLink>)}
+      {sections.map(({ path, label, unavailable, preserveSearch = true }) => unavailable
+        ? <div key={path} className="nav-unavailable" role="link" aria-disabled="true" aria-label={label + '. ' + unavailable} title={unavailable}><Activity size={17} /><span>{label}<small>{unavailable}</small></span></div>
+        : <NavLink key={path} to={{ pathname: path, search: preserveSearch ? search : undefined }} onClick={onNavigate}><Activity size={17} />{label}</NavLink>)}
     </nav>
   </aside>
 }
@@ -48,7 +52,7 @@ export function Topbar({ viewer, search, onSearch, toggle, expanded, onLogout }:
 }
 
 export function AppShell({ sections, viewer, search, onSearch, onLogout, children }: {
-  sections: { path: string; label: string; preserveSearch?: boolean }[]; viewer?: DashboardData['viewer']; search: string;
+  sections: WorkspaceNavItem[]; viewer?: DashboardData['viewer']; search: string;
   onSearch: (value: string) => void; onLogout: () => void; children: ReactNode;
 }) {
   const [compact, setCompact] = useState(false)

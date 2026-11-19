@@ -81,3 +81,5 @@
 # Independently gate master data and account, role, password and application settings writes.
 # ewo.masterDataWrites = false
 # ewo.accountWrites = false
+# Private account/branding write root with profile/eworeb and logo/eworeb. Separate from the read-only archive.
+# ewo.accountMediaRoot =

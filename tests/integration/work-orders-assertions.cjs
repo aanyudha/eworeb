@@ -84,6 +84,7 @@ module.exports = async function testWorkOrders(request, login, location) {
     assert.equal(response.status, 200)
     const report = await response.json()
     assert.equal(report.pageSize, 3)
+    assert.equal(report.subcategory_available, true)
     assert.equal(report.items.length, 3)
     assert.ok(report.items.every(row => row.corp_id === 1 && row.location_name === 'Site One'))
     assert.ok(report.items.every(row => row.has_image === true && !('image_small' in row)))
@@ -109,6 +110,28 @@ module.exports = async function testWorkOrders(request, login, location) {
   assert.ok(scheduled.items.every(item=>item.corp_id===1 && item.published_at==='2026-02-01 10:00:00'))
   await request('/logout')
   console.log('Drafts and Scheduled: add_post, manage_all_posts, corporation/department scope and schedule columns PASS')
+
+  assert.equal(location(await login('admin@example.test','fixture-password')), '/workspace')
+  const disabledWrites = [
+    ['/api/v1/work-orders/incoming/1/reply', 503],
+    ['/api/v1/work-orders/incoming/1/attachments/image', 503],
+    ['/api/v1/work-orders/drafts/1/publish', 503],
+    ['/api/v1/admin-directory/categories/new', 403],
+    ['/api/v1/admin-directory/users/new', 403],
+    ['/api/v1/admin-directory/roles/2/edit', 403],
+    ['/api/v1/account/profile/email', 403],
+    ['/api/v1/account/profile/avatar', 403],
+    ['/api/v1/account/password', 403],
+    ['/api/v1/settings/application', 403],
+    ['/api/v1/settings/visual/logo', 403],
+  ]
+  for (const [route, code] of disabledWrites) {
+    const {csrf} = await (await request('/api/v1/account/profile')).json()
+    const response = await request(route, {}, { headers: { 'X-Requested-With': 'XMLHttpRequest', [csrf.header]: csrf.hash } })
+    assert.equal(response.status, code, route)
+  }
+  await request('/logout')
+  console.log('HTTP: authorized session cannot use mutation endpoints when all three switches are false PASS')
 
   console.log('Work Order lists: permissions, corporation/department scope, filters, pagination, and deep links PASS')
 }

@@ -1,0 +1,50 @@
+# Kesiapan operasi EWO Reborn
+
+## Siap untuk penerimaan pengguna
+
+- Login Apache dengan akun legacy sudah diverifikasi pada tahap sebelumnya. Workspace React adalah dashboard operasional. Alias /admin mengarah ke Workspace melalui filter sesi dan admin_panel.
+- Dashboard, Incoming, Outgoing, Drafts, detail dan histori, direktori, serta profil sendiri tersedia untuk penerimaan baca-saja sesuai izin.
+- Reports In dan Reports Out memuat data aktual dengan izin admin_panel dan add_post. Total serta paginasi mengikuti query arah dan scope yang sama. Scope non-admin berasal dari sesi. Pada skema tanpa posts.subcategory_id, kolom kategori memuat kategori utama dan label “Subcategory unavailable”. Layar, PDF A3 dan XLSX memakai array sel yang sama untuk halaman hasil saat ini. Jasper CI3 dan paritas laporan penuh berada di luar hasil ini.
+- Root arsip CI3 dipasang sebagai sumber baca-saja melalui .env lokal. Resolver menemukan 1.924 dari 17.469 referensi gambar utama dan 302 dari 3.126 referensi gambar tambahan. Detail WO hanya mengunduh file yang terkait pada WO dalam scope. Lima referensi avatar dan kedua referensi branding memiliki file lokal dalam audit. MIME, root dan path tetap diperiksa sebelum penyajian. Lengkapi arsip di lokasi privat yang disetujui untuk memenuhi referensi sisanya.
+- Knowledge Center dan editor memakai JSON existing. MySQL KB belum memiliki tabel legacy yang terbukti sesuai secara semantik. Hasil fixture MySQL KB sebelumnya tetap menjadi referensi.
+
+## Tiga sakelar penulisan
+
+Semua bernilai false pada salinan yang dipertahankan di TCP 3310. Prefix endpoint di tabel adalah /api/v1. Semua POST melewati CSRF global dan filter sesi. Endpoint yang menyimpan data memeriksa akun aktif dan meminta izin sesuai operasi.
+
+| Sakelar | POST yang dikendalikan | Cakupan, transaksi, histori dan kegagalan |
+| --- | --- | --- |
+| ewo.workOrderWrites | work-orders/incoming/{id}/reply, work-orders/incoming/{id}/attachments/{image atau audio}, work-orders/drafts/{id}/publish | add_post dan manage_all_posts untuk balasan dan lampiran. Scope Incoming, role tujuan dan corporation dilindungi. Balasan mengunci WO, memeriksa revisi dan memasukkan posts_logs dalam satu transaksi. Lampiran menulis metadata/referensi dan menyimpan file sebelum commit serta menangani rollback; arsip CI3 dipasang terpisah. Publikasi membutuhkan add_post dan memakai scope daftar Draft pada UPDATE atomik; mengikuti CI3 dengan menulis status saja. Fixture menolak lintas department dan corporation. |
+| ewo.masterDataWrites | admin-directory/{categories,subcategories,locations,sublocations,departments,corporations}/new dan /{id}/edit | Izin menu yang sama dengan daftar. Corporation dan parent divalidasi, aksi corporations dibatasi administrator. Transaksi mencakup perubahan record, slug dan pewarisan warna bila berlaku. Kategori status inti dan relasi existing dilindungi. CI3 tidak menulis log WO untuk perubahan master. Fixture menguji keenam jalur, CSRF dan scope; gagalnya UPDATE turunan belum diuji dengan injeksi kegagalan. |
+| ewo.accountWrites | admin-directory/{users,administrators}/new dan /{id}/edit, admin-directory/roles/{id}/edit, account/password, account/profile/email, account/profile/avatar, settings/application, settings/visual/{logo atau favicon} | Mutasi akun dan role oleh administrator, password dan profil pada akun sesi sendiri, settings dengan izin settings. Akun tetap memakai hash bcrypt kompatibel, perubahan email meminta password saat ini dan memerlukan email verification legacy nonaktif. Settings menyimpan timezone dan field teks dalam transaksi; logo, favicon dan avatar mempunyai transaksi file/referensi. Tidak ada INSERT users_logs untuk mutasi profil/settings; users_logs mencatat aktivitas autentikasi seperti sebelumnya. Deaktivasi mengikuti CI3 untuk login baru; sesi lama tidak dicabut otomatis. |
+
+GET work-orders/incoming/{id}/reply juga mengikuti sakelar WO. GET daftar Draft dan attachments hanya mengiklankan aksi sesuai sakelar dan cakupan. GET editor /new dan /{id}/edit mengikuti sakelar Master Data atau akun. GET account/password mengikuti sakelar akun. GET account/profile, settings/application dan settings/visual tetap tersedia sesuai izin dan mengembalikan ketersediaan edit. GET media hanya membaca referensi tersimpan.
+
+Pembuktian mutasi memakai instance MySQL loopback sementara terpisah dengan definisi tabel aktual dan record uji terkontrol. Uji kegagalan mencakup rollback WO saat INSERT history ditolak, rollback audio saat relasi ditolak, kegagalan update avatar tanpa file tambahan, dan rollback settings saat penulisan timezone ditolak. Git status dan diff dipakai untuk membaca working tree.
+
+## Create WO dan keterbatasan kompatibilitas
+
+Create biasa belum terbukti aman tanpa perubahan skema. CI3 memasukkan published_at dalam posts dan posts_logs untuk semua Create, walaupun kotak jadwal tidak dipilih. created_at tetap timestamp pembuatan. Minimum untuk meninjau Create sesuai kontrak adalah definisi kompatibel untuk posts.published_at dan posts_logs.published_at, termasuk semantik nilai kosong untuk WO biasa, tipe temporal dan timezone yang dikonfirmasi. Backup dan data historis diperlukan sebelum menetapkan backfill. Scheduled adalah kapabilitas terpisah dan juga memerlukan intervale dengan interval hari serta verifikasi cron.
+
+Workspace menampilkan Create Work Order sebagai entri nonaktif bagi pemegang add_post. Form dan POST belum dibuka. Kontrak form mencakup title wajib maksimum 500, summary maksimum 5.000, kategori awal New, lokasi wajib dan sublokasi yang terkait, role tujuan dari get_active_role_for_dept, bahasa, visibilitas, penyimpanan status Draft atau Publish dan lampiran. Admin memilih corporation dan department. Non-admin memakai corporation, department dan identitas sesi. Pemeriksaan konfirmasi email pada konstruktor CI3 juga berlaku saat email verification aktif. Controller menerima optional_url sampai 1.000 karakter, namun penyimpanan aktif untuk field tersebut tidak terbukti. Penerimaan Create mencakup post dan log awal atomik, relasi lampiran dan konfirmasi perilaku notifikasi subscriber sebelum efek eksternal diaktifkan.
+
+Edit umum audio/video belum terbukti setara. File_controller menyediakan upload, select, list, search dan delete untuk katalog audio/video, sementara jalur penyuntingan metadata in-place tidak ditemukan. Field video_embed_code dan video_path pada set_data CI3 dikomentari. Audio pada WO masih didukung melalui unggah dan relasi yang sudah diuji. Gallery dan ordered list tetap diblokir oleh skema tabel relasi yang hilang. Visual Settings aktif hanya logo dan favicon. Upaya mengedit warna/format lama tidak ditambahkan; field branding mentah SVG ditahan dan favicon baru dibatasi PNG sesuai input form legacy. Email Settings, kontak rich HTML, dan pengiriman email aktivasi masih memerlukan alur aman yang diverifikasi.
+
+## Bukti regresi
+
+- PHP 8.5.12 lint, PHPUnit 7 tes dan 32 assertion, TypeScript serta Vite lulus. Chunk PDF/font dimuat sesuai kebutuhan.
+- MySQL TCP 3310, transaksi baca-saja. Dua arah laporan, dua kondisi filter dan enam role menghasilkan 24 skenario yang cocok untuk total dan urutan ID. Angka awal dan akhir tetap 19.812 posts dan 43.609 posts_logs dengan SHA-256 identik. Apache guest mengembalikan 200 untuk logo dan favicon, 401 untuk API lampiran dan 404 untuk akses langsung lokasi upload melalui subfolder.
+- Chrome fixture menguji login, sesi, logout, redirect /admin, dashboard tunggal, mobile, direct refresh dan akses role terbatas. Chrome menguji ekspor XLSX berisi penanda subkategori serta PDF A3 pada skema aktual, dan unggah favicon yang tetap tampil setelah refresh. Suite standar menguji jalur alternatif untuk skema yang masih mempunyai subcategory_id. Sesi admin dengan CSRF asli ditolak pada endpoint mutasi ketika ketiga sakelar nonaktif.
+- Fixture profil menguji password salah, email duplikat, cakupan akun, guard verifikasi, login dengan alamat baru, JPEG avatar, kegagalan tanpa file tambahan, serta pembacaan logo publik. Aset avatar hanya disajikan dari referensi akun sesi. File lama dibiarkan privat untuk pemulihan sesuai kebijakan penyimpanan.
+
+## Checklist pemilik sebelum menyalakan penulisan
+
+- [ ] Konfirmasi instance, schema, akun MySQL dengan GRANT minimum per sakelar, cadangan database dan media serta uji restore pada salinan terisolasi.
+- [ ] Setujui operasi mana yang boleh dibuka. Buat role matrix UAT untuk admin, admin corporation, GM, petugas dan employee. Verifikasi akun aktif, lokasi, department dan assignee dalam cakupan yang benar.
+- [ ] Siapkan direktori privat, writable oleh PHP sesuai kebutuhan. Mount arsip sebagai baca-saja. Pisahkan ewo.workOrderUploadRoot dan ewo.accountMediaRoot. Verifikasi fileinfo dan GD untuk validasi unggahan profil dan branding, izin filesystem, batas PHP dan larangan akses HTTP langsung. Sertakan media pada backup. Verifikasi bentuk dan keberhasilan restore dan rekonsiliasi reference jika hasil commit tidak diketahui.
+- [ ] Jalankan suite fixture schema aktual dan uji ulang browser di instance penerimaan. Validasi kegagalan parsial, pengiriman ulang dan perubahan bersamaan secara terpisah bila menjadi kebutuhan operasional.
+- [ ] Putuskan kebijakan histori administrasi. CI3 tidak memberi log mutasi admin khusus. Tentukan apakah status akun juga perlu mencabut sesi yang sudah aktif.
+- [ ] Konfirmasi definisi kedua published_at dan alur Create, serta intervale dan perilaku cron bila Scheduled diperlukan. Putuskan sumber nilai subkategori jika label penuh diperlukan. Sampai keputusan tersebut, laporan memakai indikasi unavailable.
+- [ ] Putuskan kelengkapan arsip, layanan email dan aktivasi, atau tetap gunakan email verification nonaktif bila sesuai kebijakan pemilik. Tentukan penyimpanan KB semantik hanya jika JSON perlu diganti.
+- [ ] Aktifkan sakelar satu per satu hanya setelah persetujuan pemilik. Ulangi smoke test, pemantauan galat dan pengecekan integritas sesuai cakupan penulisan yang diizinkan.
+

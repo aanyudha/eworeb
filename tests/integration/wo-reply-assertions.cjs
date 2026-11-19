@@ -9,6 +9,20 @@ module.exports=async function replyAssertions(request,login,location,audit,audio
   assert.equal((await request(inactive)).status,403)
   await request('/logout')
   assert.equal(location(await login('engineering@example.test','fixture-password')),'/workspace')
+  for (const direction of ['incoming', 'outgoing']) {
+    const params = '?show=3&corpnya=2&q=Fixture&dateChoice=created_at&tglAwal=2000-01-01&tglAkhir=2099-01-01'
+    const reportResponse = await request('/api/v1/reports/' + direction + params)
+    assert.equal(reportResponse.status, 200)
+    const report = await reportResponse.json()
+    const list = await (await request('/api/v1/work-orders/' + direction + params)).json()
+    assert.equal(report.subcategory_available, false)
+    assert.equal(report.total, list.total)
+    assert.equal(report.items.length, 3)
+    assert.deepEqual(report.items.map(row => row.id), list.items.map(row => row.id))
+    assert.ok(report.items.every(row => row.subcategory_name === null && row.corp_id === 1))
+    if (direction === 'outgoing') assert.ok(report.items.every(row => row.dept_id === 10))
+  }
+  console.log('Reports on exact legacy schema: totals, filters and scope with unavailable subcategory PASS')
   const visible=await (await request('/api/v1/work-orders/incoming')).json()
   const sample=visible.items.find(w=>![4,6].includes(Number(w.category_id)) && Number(w.corp_id)===1)
   assert.ok(sample)
@@ -33,7 +47,7 @@ module.exports=async function replyAssertions(request,login,location,audit,audio
     return request(mediaPath + '/image', data, { headers })
   }
   assert.equal(media.upload.kind, 'image')
-  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFcQAAAAASUVORK5CYII=', 'base64')
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNQcEgAAAFEAMELjZZCAAAAAElFTkSuQmCC', 'base64')
   assert.equal((await uploadImage(png, 'attachment.png')).status, 403)
   assert.equal((await uploadImage('invalid content', 'attachment.png', media.upload)).status, 422)
   const fresh = await (await request(mediaPath)).json()

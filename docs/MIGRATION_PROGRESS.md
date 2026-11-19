@@ -1,5 +1,14 @@
 # Progres migrasi EWO
 
+## Kompatibilitas akhir dan kesiapan operasi, 19 November 2026 WIB
+
+- Reports In/Out kembali tersedia bagi pemegang add_post. Query tetap menggunakan filter, total dan scope WO biasa. Kolom subkategori bersifat opsional berdasarkan metadata schema. UI, PDF A3 dan XLSX berbagi isi sel. Probe read-only di TCP 3310 membandingkan 24 skenario pada enam role dengan daftar WO yang sama.
+- Create Work Order tampil sebagai entri nonaktif. CI3 menulis published_at pada posts dan posts_logs untuk Create biasa. Form operasional dan POST ditahan sampai kontrak timestamp terverifikasi. Scheduled tetap terpisah.
+- Arsip CI3 lokal dipasang baca-saja melalui .env. Resolver memverifikasi 1.924 gambar utama dan 302 gambar tambahan. Profil mendukung perubahan email sendiri pada kondisi email verification nonaktif, serta avatar JPEG dari penyimpanan privat. Visual Settings mengelola logo raster dan favicon PNG untuk login dan Workspace. Penulisan hanya diuji pada fixture, dengan sakelar di TCP 3310 tetap false.
+- Peta endpoint, cakupan izin, risiko, keputusan pemilik dan checklist penerimaan tersedia di [Kesiapan operasi](OPERATIONAL_READINESS.md). Knowledge Center tetap memakai JSON.
+- PHP lint, PHPUnit, TypeScript, Vite dan dua suite MySQL terisolasi lulus. Chrome menguji PDF A3, isi XLSX, mobile, favicon dan refresh. Apache guest menguji aset, branding dan penolakan lampiran. Salinan TCP 3310 tetap memiliki 19.812 posts dan 43.609 posts_logs dengan checksum awal dan akhir identik.
+- Perubahan file mencakup route, controller dan view Workspace/login, WorkOrderList untuk Reports, UserManagement dan AccountController untuk email, BrandingController dan AccountImages untuk media, komponen React, templat env dan fixture regresi. .env lokal hanya menambah root arsip baca-saja.
+
 ## Lampiran, Draft, Master Data dan pengelolaan akun, 19 November 2026 WIB
 
 - Detail Incoming menyediakan unggahan privat gambar tambahan dan audio sesuai jenis WO serta akses balasan. File disimpan sebelum commit relasi, memakai nama acak dan namespace terpisah dari arsip. Validasi mencakup ekstensi, MIME aktual, ukuran, batas dimensi gambar serta flag unduh audio. Kegagalan relasi audio dibuktikan membatalkan metadata dan meninggalkan jumlah file yang sama. Kegagalan setelah file dipindahkan dibersihkan setelah rollback yang dikonfirmasi. File dengan hasil commit yang tidak diketahui dipertahankan untuk rekonsiliasi.

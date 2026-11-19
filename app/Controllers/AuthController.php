@@ -24,6 +24,7 @@ final class AuthController extends BaseController
 
         return $this->response->setBody(view('admin/login', [
             'settings' => $settings,
+            'branding' => BrandingController::assets(),
             'messages' => session()->getFlashdata('messages') ?? [],
             'email'    => session()->getFlashdata('old_email') ?? '',
         ]));

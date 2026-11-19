@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="<?= esc(base_url('favicon.ico'), 'attr') ?>">
+    <link rel="icon" href="<?= esc($branding['favicon'] ?? base_url('favicon.ico'), 'attr') ?>">
     <title>Login - Admin <?= esc($settings['site_title'] ?? 'EWO') ?></title>
     <?php foreach (['vendor/bootstrap/css/bootstrap.min.css', 'admin/css/AdminLTE.min.css', 'admin/css/_all-skins.min.css', 'admin/css/custom.css'] as $style): ?>
         <link rel="stylesheet" href="<?= esc(base_url('assets/' . $style), 'attr') ?>">
@@ -12,7 +12,7 @@
 <body class="hold-transition login-page">
 <div class="login-box">
     <div class="login-logo">
-        <a href="<?= esc(site_url('admin/login'), 'attr') ?>"><b><?= esc($settings['application_name'] ?? 'EWO') ?></b>&nbsp;Panel</a>
+        <a href="<?= esc(site_url('admin/login'), 'attr') ?>"><?php if (isset($branding['logo'])): ?><img src="<?= esc($branding['logo'], 'attr') ?>" alt="" width="34" height="34"> <?php endif; ?><b><?= esc($settings['application_name'] ?? 'EWO') ?></b>&nbsp;Panel</a>
     </div>
     <div class="login-box-body">
         <h1 class="login-box-msg h4">Login</h1>

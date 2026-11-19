@@ -29,18 +29,20 @@ const reportColumnKeys = [
 
 type ReportOrder = Order & Record<(typeof reportColumnKeys)[number], string | null> & { has_image: boolean }
 
-function reportCells(row: Order): string[] {
+function reportCells(row: Order, subcategoryAvailable: boolean): string[] {
   const fields = row as ReportOrder
   const author = [fields.author_first, fields.author_last].filter(Boolean).join(' ')
   return [
     String(row.id), row.title ?? '', row.summary ?? '',
-    [fields.category_name, fields.subcategory_name].filter(Boolean).join(' '),
+    subcategoryAvailable
+      ? [fields.category_name, fields.subcategory_name].filter(Boolean).join(' ')
+      : [fields.category_name, 'Subcategory unavailable'].filter(Boolean).join(' · '),
     (fields.location_name ?? '') + ' / ' + (fields.sublocation_name ?? ''),
     fields.department_name ?? '',
     [author, fields.author_role ? '(' + fields.author_role + ')' : ''].filter(Boolean).join(' '),
     fields.assigned_role_name ?? '',
     [fields.assigned_first, fields.assigned_last].filter(Boolean).join(' '),
-    row.edited_at ?? '', row.created_at ?? '', '',
+    row.edited_at ?? '', row.created_at ?? '', fields.has_image ? 'Image available' : '',
   ]
 }
 
@@ -50,6 +52,7 @@ type OrderPage = {
   page: number
   pageSize: number
   total: number
+  subcategory_available?: boolean
   publish_csrf?: { header: string; hash: string }
 }
 const statusNames: Record<number, string> = { 1: 'New', 2: 'Progress', 3: 'Waiting', 4: 'Closed', 5: 'Pending' }
@@ -116,7 +119,7 @@ export default function WorkOrders({ endpoint, direction, role, report = false }
     setExporting(true)
     setExportError('')
     try {
-      await exportReport(title, format, result.items.map(reportCells))
+      await exportReport(title, format, result.items.map(row => reportCells(row, result.subcategory_available !== false)))
     } catch {
       setExportError('Could not export the report.')
     } finally {
@@ -170,13 +173,13 @@ export default function WorkOrders({ endpoint, direction, role, report = false }
       {query.error && <ErrorState message={query.error.message}
         action={<button type="button" className="secondary" onClick={() => void query.refetch()}>Retry</button>} />}
       {result && <>
+        {report && result.subcategory_available === false &&
+          <p className="empty" role="status">Subcategory is unavailable in the current legacy schema.</p>}
         <div className="table-wrap">
           {report ? <table>
             <thead><tr>{reportHeadings.map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
             <tbody>{result.items.map(order => <tr key={order.id}>
-              {reportCells(order).map((value, index) => <td key={index}>
-                {index === 11 && (order as ReportOrder).has_image ? 'Image available' : value}
-              </td>)}
+              {reportCells(order, result.subcategory_available !== false).map((value, index) => <td key={index}>{value}</td>)}
             </tr>)}</tbody>
           </table> : <table>
 

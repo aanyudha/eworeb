@@ -60,6 +60,44 @@ final class UserManagement
             $data['status'] = (int)$status;
         }
 
+        return $this->withAccountLock(fn (): int => $this->persist($resource, $id, $viewerId, $data));
+    }
+
+    public function changeOwnEmail(array $viewer, mixed $input): void
+    {
+        $email = $this->email($input);
+        $this->withAccountLock(function () use ($viewer, $email): void {
+            $this->db->transException(true);
+            if (!$this->db->transBegin()) {
+                throw new RuntimeException('Could not begin profile change.');
+            }
+            try {
+                $general = $this->db->query('SELECT email_verification FROM general_settings WHERE id = 1 FOR SHARE')->getRowArray();
+                if (!isset($general['email_verification']) || (int)$general['email_verification'] !== 0) {
+                    throw new DomainException('Email changes require a verified email activation flow.', 409);
+                }
+                $id = (int)$viewer['id'];
+                $user = $this->db->query('SELECT email, password, status FROM users WHERE id = ? FOR UPDATE', [$id])->getRowArray();
+                if ($user === null || (int)$user['status'] !== 1 || $user['email'] !== $viewer['email']
+                    || $user['password'] !== $viewer['password']) {
+                    throw new DomainException('The account changed. Refresh and try again.', 409);
+                }
+                if ($this->db->table('users')->where(['email' => $email, 'id !=' => $id])->countAllResults() > 0) {
+                    throw new DomainException('The email address is already in use.', 409);
+                }
+                if (!$this->db->table('users')->where('id', $id)->update(['email' => $email])
+                    || !$this->db->transStatus() || !$this->db->transCommit()) {
+                    throw new RuntimeException('Could not save the profile.');
+                }
+            } catch (Throwable $error) {
+                $this->db->transRollback();
+                throw $error;
+            }
+        });
+    }
+
+    private function withAccountLock(callable $operation): mixed
+    {
         $database = (string)$this->db->database;
         $lock = 'eworeb-users-' . substr(hash('sha256', $database), 0, 40);
         $acquired = $this->db->query('SELECT GET_LOCK(?, 5) AS acquired', [$lock])->getRowArray();
@@ -67,7 +105,7 @@ final class UserManagement
             throw new RuntimeException('Account changes are busy.');
         }
         try {
-            return $this->persist($resource, $id, $viewerId, $data);
+            return $operation();
         } finally {
             $this->db->query('DO RELEASE_LOCK(?)', [$lock]);
         }

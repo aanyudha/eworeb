@@ -31,6 +31,12 @@ Semua sakelar default `false`. Uji mutasi di instance MySQL terisolasi. Untuk la
 
 Status dan batas setiap modul tersedia di [matriks parity](docs/FEATURE_PARITY_MATRIX.md). Rincian tiga kolom penghambat tersedia di [audit schema legacy](docs/LEGACY_DATABASE_ALIGNMENT.md).
 
+## Kesiapan operasional
+
+Reports In/Out dapat dibuka oleh pemegang `add_post`. Pada skema legacy yang tidak memiliki subkategori, tabel dan ekspor halaman aktif menampilkan “Subcategory unavailable”. Create Work Order tampil nonaktif sambil menunggu pembuktian kontrak publikasi awal CI3.
+
+Mount arsip CI3 lokal bersifat baca-saja. Avatar sendiri, logo dan favicon dari unggahan baru membutuhkan `ewo.accountMediaRoot` privat dan sakelar akun yang disetujui. Avatar memakai GD untuk crop JPEG 240 × 240. Email profil membutuhkan kata sandi saat ini dan hanya dapat berubah ketika email verification legacy nonaktif. [Kesiapan operasi dan checklist persetujuan](docs/OPERATIONAL_READINESS.md)
+
 ## Build frontend dan shared hosting
 
 Dari root project, jalankan dengan Node.js LTS yang kompatibel dengan Vite 7.

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="<?= esc(base_url('favicon.ico'), 'attr') ?>">
+    <link rel="icon" href="<?= esc($branding['favicon'] ?? base_url('favicon.ico'), 'attr') ?>">
     <title>EWO Reborn · Workspace</title>
     <?php foreach ($entry['css'] ?? [] as $file): ?>
         <link rel="stylesheet" href="<?= esc(base_url('workspace-assets/' . $file), 'attr') ?>">
@@ -16,18 +16,21 @@
      data-knowledge-admin="<?= esc(site_url('api/v1/admin/kb/articles'), 'attr') ?>"
      data-knowledge-home="<?= esc(site_url('kb'), 'attr') ?>"
      data-dashboard-api="<?= esc(site_url('api/v1/dashboard'), 'attr') ?>"
+     <?php if (isset($branding['logo'])): ?>
+     data-brand-logo="<?= esc($branding['logo'], 'attr') ?>"
+     <?php endif; ?>
+     data-create-work-order-access="<?= $createWorkOrderAccess ? 'enabled' : 'disabled' ?>"
      data-profile-api="<?= esc(site_url('api/v1/account/profile'), 'attr') ?>"
      <?php if ($settingsAccess): ?>
      data-settings-api="<?= esc(site_url('api/v1/settings/application'), 'attr') ?>"
+     data-visual-api="<?= esc(site_url('api/v1/settings/visual'), 'attr') ?>"
      <?php endif; ?>
      <?php if ($passwordAccess): ?>
      data-password-api="<?= esc(site_url('api/v1/account/password'), 'attr') ?>"
      <?php endif; ?>
      <?php if ($workOrderRole !== null): ?>
      data-work-orders-api="<?= esc(site_url('api/v1/work-orders'), 'attr') ?>"
-     <?php if ($reportsAccess): ?>
      data-reports-api="<?= esc(site_url('api/v1/reports'), 'attr') ?>"
-     <?php endif; ?>
      data-schedule-access="<?= $scheduleAccess ? 'enabled' : 'disabled' ?>"
      data-reply-access="<?= $replyAccess ? 'enabled' : 'disabled' ?>"
      data-work-order-role="<?= esc((string) $workOrderRole, 'attr') ?>"

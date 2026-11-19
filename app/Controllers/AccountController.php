@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Libraries\LegacyPassword;
 use App\Models\AuthRepository;
 use App\Models\UserManagement;
+use App\Services\AccountImages;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Database;
 use DomainException;
@@ -21,8 +22,73 @@ final class AccountController extends BaseController
         if ($viewer === null) {
             return $response->setStatusCode(401)->setJSON(['error' => 'Your session has expired.']);
         }
+        $emailEditable = false;
+        if (self::canChangePassword($viewer)) {
+            $general = (new AuthRepository(Database::connect('ewo')))->generalSettings();
+            $emailEditable = isset($general['email_verification']) && (int)$general['email_verification'] === 0;
+        }
         return $response->setJSON(['values' => array_intersect_key($viewer,
-            array_flip(['first_name', 'last_name', 'email', 'corp_id', 'dept_id']))]);
+            array_flip(['first_name', 'last_name', 'email', 'corp_id', 'dept_id'])),
+            'email_editable' => $emailEditable,
+            'avatar_url' => AccountImages::resolve('avatar', $viewer['avatar'] ?? null) === null ? null
+                : site_url('api/v1/account/profile/avatar'),
+            'avatar_editable' => $this->canUpdateAvatar($viewer),
+            'csrf' => ['header' => csrf_header(), 'hash' => csrf_hash()]]);
+    }
+
+    public function avatar(): ResponseInterface
+    {
+        $viewer = service('ewoIdentity')?->currentUser();
+        $file = AccountImages::resolve('avatar', $viewer['avatar'] ?? null);
+        if ($file === null) {
+            return $this->response->setStatusCode(404);
+        }
+        return $this->response->download($file, null, true)->inline()->setHeader('Cache-Control', 'private, no-store')
+            ->setHeader('X-Content-Type-Options', 'nosniff');
+    }
+
+    public function updateAvatar(): ResponseInterface
+    {
+        $response = $this->response->setHeader('Cache-Control', 'private, no-store');
+        $viewer = service('ewoIdentity')?->currentUser();
+        if (!$this->canUpdateAvatar($viewer)) {
+            return $response->setStatusCode(403)->setJSON(['error' => 'Avatar changes are unavailable.']);
+        }
+        try {
+            (new AccountImages())->save(Database::connect('ewo'), 'avatar', $this->request->getFile('avatar'), (int)$viewer['id']);
+            return $response->setJSON(['saved' => true]);
+        } catch (DomainException $error) {
+            return $response->setStatusCode($error->getCode())->setJSON(['error' => $error->getMessage()]);
+        } catch (RuntimeException) {
+            return $response->setStatusCode(503)->setJSON(['error' => 'Could not update the avatar.']);
+        }
+    }
+
+    private function canUpdateAvatar(?array $viewer): bool
+    {
+        return env('ewo.accountWrites', false) === true && (int)($viewer['status'] ?? 0) === 1 && AccountImages::canStore('avatar');
+    }
+
+    public function changeProfileEmail(): ResponseInterface
+    {
+        $response = $this->response->setHeader('Cache-Control', 'private, no-store');
+        $viewer = service('ewoIdentity')?->currentUser();
+        if (!self::canChangePassword($viewer)) {
+            return $response->setStatusCode(403)->setJSON(['error' => 'Profile email changes are unavailable.']);
+        }
+        $password = $this->request->getPost('old_password');
+        if (!is_string($password) || strlen($password) > 1024 || !(new LegacyPassword())->verify($password, $viewer['password'])) {
+            return $response->setStatusCode(422)->setJSON(['error' => 'Enter your current password.']);
+        }
+
+        try {
+            (new UserManagement(Database::connect('ewo')))->changeOwnEmail($viewer, $this->request->getPost('email'));
+            return $response->setJSON(['saved' => true]);
+        } catch (DomainException $error) {
+            return $response->setStatusCode($error->getCode())->setJSON(['error' => $error->getMessage()]);
+        } catch (RuntimeException) {
+            return $response->setStatusCode(503)->setJSON(['error' => 'Could not update the profile email.']);
+        }
     }
 
     public function managedUserForm(string $resource, string $record = ''): ResponseInterface

@@ -45,17 +45,20 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   fs.mkdirSync(sessionPath);
   const media = path.join(runtime,'wo-media');
   const uploads = path.join(runtime,'wo-uploads');
+  const accountMedia = path.join(runtime,'account-images');
   if (mysql?.replies) {
+    for (const folder of ['profile','logo']) fs.mkdirSync(path.join(accountMedia,folder,'eworeb'),{recursive:true});
     fs.mkdirSync(path.join(uploads,'images','eworeb'),{recursive:true});
     fs.mkdirSync(path.join(uploads,'audios','eworeb'),{recursive:true});
     fs.mkdirSync(path.join(media,'images'),{recursive:true});
     fs.writeFileSync(path.join(media,'images','fixture.png'), Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFcQAAAAASUVORK5CYII=', 'base64'));
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNQcEgAAAFEAMELjZZCAAAAAElFTkSuQmCC', 'base64'));
     fs.copyFileSync(path.join(media,'images','fixture.png'),path.join(media,'outside.png'));
   }
   const fixtureEnv=[
     'CI_ENVIRONMENT = production', 'app.baseURL = '+origin+'/', 'ewo.workOrderWrites = '+Boolean(mysql?.replies), 'ewo.workOrderMediaRoot = '+(mysql?.replies ? media.replaceAll('\\','/') : ''),
     'ewo.workOrderUploadRoot = '+(mysql?.replies ? uploads.replaceAll('\\','/') : ''),
+    'ewo.accountMediaRoot = '+(mysql?.replies ? accountMedia.replaceAll('\\','/') : ''),
     'ewo.masterDataWrites = '+Boolean(mysql?.replies), 'ewo.accountWrites = '+Boolean(mysql?.replies),
     ...connection, 'session.savePath = "'+sessionPath+'"',
     'ewo.sessionKey = '+require('node:crypto').randomBytes(32).toString('hex'), 'session.cookieName = '+sessionName,
@@ -66,13 +69,13 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const prepend=path.join(runtime,'load-fixture.php');
   fs.writeFileSync(prepend, '<?php require '+JSON.stringify(dotenv)+'; (new CodeIgniter\\Config\\DotEnv(__DIR__))->load();');
   fs.writeFileSync(path.join(runtime,'php.ini'), [
-    'extension_dir="'+ext+'"','extension=intl','extension=mbstring','extension=sqlite3','extension=fileinfo','upload_max_filesize=20M','post_max_size=22M', ...(mysql ? ['extension=mysqli'] : []),
+    'extension_dir="'+ext+'"','extension=intl','extension=mbstring','extension=sqlite3','extension=fileinfo', ...(mysql?.replies ? ['extension=gd'] : []),'upload_max_filesize=20M','post_max_size=22M', ...(mysql ? ['extension=mysqli'] : []),
     'auto_prepend_file="'+prepend+'"',
   ].join('\n'));
   const env={...process.env,PHPRC:runtime,PHP_INI_SCAN_DIR:''};
   delete env.EWO_REPLY_FIXTURE_ADMIN;
   for (const key of Object.keys(env)) {
-    if (/^(?:CI_ENVIRONMENT|app[._]baseURL|database[._]ewo[._]|ewo[._](?:sessionKey|workOrderWrites|workOrderMediaRoot|workOrderUploadRoot|masterDataWrites|accountWrites)|session[._]cookieName|knowledgebase[._](?:directory|backend)|database[._]kb[._]|session[._]savePath)/i.test(key)) delete env[key];
+    if (/^(?:CI_ENVIRONMENT|app[._]baseURL|database[._]ewo[._]|ewo[._](?:sessionKey|workOrderWrites|workOrderMediaRoot|workOrderUploadRoot|masterDataWrites|accountWrites|accountMediaRoot)|session[._]cookieName|knowledgebase[._](?:directory|backend)|database[._]kb[._]|session[._]savePath)/i.test(key)) delete env[key];
   }
   const diagnosis=execFileSync(php,['spark','ewo:diagnose'],{cwd:target,env:{...env,CI_ENVIRONMENT:'development'},encoding:'utf8'});
   assert.match(diagnosis,/database.ewo.database: set/);
@@ -189,6 +192,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   if (mysql?.replies) {
     await require('./wo-reply-assertions.cjs')(request,login,location,audit,path.join(uploads,'audios','eworeb'));
     await require('./master-and-account-assertions.cjs')(request,login,location,audit);
+    await require('./profile-and-branding-assertions.cjs')(request,login,location,audit,path.join(accountMedia,'profile','eworeb'));
   }
   console.log('HTTP: guest, CSRF, login, invalid password, ban, permission, activity, logout PASS');
 })().catch(error=>{console.error(error);console.error(output);process.exitCode=1;}).finally(()=>{

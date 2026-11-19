@@ -13,9 +13,10 @@ import WorkOrderDetail from './WorkOrderDetail'
 import AdminDirectory from './AdminDirectory'
 import AccountPassword from './AccountPassword'
 import WorkspaceSettings from './WorkspaceSettings'
+import ProfileAndBranding from './ProfileAndBranding'
 
 const mount = document.getElementById('root')!
-const { workspace, dashboardApi, login, logout, workOrdersApi, reportsApi, workOrderRole, knowledgeEditor, scheduleAccess, replyAccess, passwordApi, profileApi, settingsApi } = mount.dataset
+const { workspace, dashboardApi, login, logout, workOrdersApi, reportsApi, workOrderRole, knowledgeEditor, scheduleAccess, replyAccess, passwordApi, profileApi, settingsApi, visualApi, createWorkOrderAccess } = mount.dataset
 const directoryViews = JSON.parse(mount.dataset.directoryViews || '[]') as { path: string; label: string; endpoint: string }[]
 const queryClient = new QueryClient()
 const formats = new Intl.NumberFormat()
@@ -121,9 +122,11 @@ function Workspace() {
         ? <a href={login}>Sign in</a>
         : <button className="secondary" onClick={() => void refetch()}>Retry</button>} />
   </> : isPending ? <><PageHeader title="Dashboard" /><LoadingState /></> : page
-  const links: { path: string; label: string; preserveSearch?: boolean }[] = sections.filter(section => data?.summary[section.key]).map(({path, label}) => ({ path: String(path), label: String(label) }))
+  const links: { path: string; label: string; preserveSearch?: boolean; unavailable?: string }[] = sections.filter(section => data?.summary[section.key]).map(({path, label}) => ({ path: String(path), label: String(label) }))
   const knowledgeAdmin = knowledgeEditor === 'enabled'
   if (knowledgeAdmin) links.push({ path: '/knowledge', label: 'Knowledge Base', preserveSearch: false })
+  if (createWorkOrderAccess === 'enabled') links.push(
+    { path: '/work-orders/create', label: 'Create Work Order', unavailable: 'Legacy publication date is unavailable' })
   if (workOrdersApi) links.push(
     { path: '/work-orders/incoming', label: 'Incoming list', preserveSearch: false },
     { path: '/work-orders/outgoing', label: 'Outgoing list', preserveSearch: false },
@@ -138,6 +141,7 @@ function Workspace() {
   links.push(...directoryLinks)
   if (profileApi) links.push({ path: '/account/profile', label: 'My profile', preserveSearch: false })
   if (settingsApi) links.push({ path: '/settings/application', label: 'Application settings', preserveSearch: false })
+  if (visualApi) links.push({ path: '/settings/visual', label: 'Visual settings', preserveSearch: false })
   if (passwordApi) links.push({ path: '/account/password', label: 'Change password', preserveSearch: false })
   return <AppShell viewer={data?.viewer} sections={links}
     search={search} onSearch={setSearch} onLogout={() => setConfirm(true)}>
@@ -154,7 +158,8 @@ function Workspace() {
       {reportsApi && <Route path="/reports/outgoing" element={<WorkOrders key="reports-out" endpoint={reportsApi} direction="outgoing" role={Number(workOrderRole)} report />} />}
       {directoryViews.map(({ path, label, endpoint }) =>
         <Route key={path} path={path} element={<AdminDirectory key={endpoint} endpoint={endpoint} title={label} />} />)}
-      {profileApi && <Route path="/account/profile" element={<WorkspaceSettings key="profile" endpoint={profileApi} title="My profile" />} />}
+      {profileApi && <Route path="/account/profile" element={<ProfileAndBranding key="profile" endpoint={profileApi} />} />}
+      {visualApi && <Route path="/settings/visual" element={<ProfileAndBranding key="visual" endpoint={visualApi} visual />} />}
       {settingsApi && <Route path="/settings/application" element={<WorkspaceSettings key="settings" endpoint={settingsApi} title="Application settings" />} />}
       {passwordApi && <Route path="/account/password" element={<AccountPassword endpoint={passwordApi} />} />}
       {knowledgeAdmin && <Route path="/knowledge/*" element={<KnowledgeAdmin />} />}

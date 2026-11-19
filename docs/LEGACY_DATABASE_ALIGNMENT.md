@@ -1,5 +1,11 @@
 # Audit dan penyelarasan database EWO legacy
 
+## Pembaruan kompatibilitas Reports dan Create
+
+CI3 menampilkan label subkategori hanya apabila lookup berhasil. Field ini bukan predikat pada filter aktif. Laporan CI4 menggunakan join subkategori bila kolom tersedia, atau mengirim `subcategory_name: null` dan `subcategory_available: false` bila skema tidak memilikinya. Sumber label kategori utama, predikat, total, sorting dan paginasi tetap dipakai. PDF dan XLSX memakai isi sel yang sama dengan tabel. Metadata aktual tidak memerlukan DDL untuk laporan dengan batas ini.
+
+Create tetap membutuhkan kontrak published_at pada posts dan posts_logs meski WO biasa. Nilai dari input date_published disalurkan tanpa pengecualian untuk Create biasa. Tidak ditemukan tipe dan makna nilai kosong yang terverifikasi dalam backup. Persyaratan minimum dijelaskan di [Kesiapan operasi](OPERATIONAL_READINESS.md). Scheduled memiliki syarat intervale dan semantik cron terpisah.
+
 ## Audit ulang schema aktif dan kontrak modul, 19 November 2026 WIB
 
 Metadata baca-saja MySQL 8.0.45 TCP 3310 mengembalikan 18 tabel, 248 kolom, 18 indeks dan 0 foreign key pada `ewohotel_tentrem` dan `eworeb`. Kedua schema tidak memiliki ketiga kolom di posts maupun posts_logs. `ewohotel_tntrm.sql`, `final_db_deploy.sql` dan `user.sql` dibaca sebagai berkas lokal. Riwayat commit CI3 dibaca untuk melacak perubahan terjadwal. Dump lama tidak dieksekusi.

@@ -57,6 +57,7 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
         await evaluate("document.querySelector('#email').value='admin@example.test'; document.querySelector('#password').value='fixture-password'; document.querySelector('button[type=submit]').click()");
         await until(()=>evaluate("location.pathname==='/workspace' && document.querySelector('.kpi strong') !== null"));
         assert.equal(await evaluate("[...document.querySelectorAll('a')].some(a=>a.textContent==='Classic dashboard')"),false);
+        assert.ok(await evaluate("document.querySelector('[aria-disabled=true][role=link][aria-label^=Create]')?.textContent.includes('publication date')"));
         await send('Page.navigate',{url:origin+'/admin'});
         await until(()=>evaluate("location.pathname==='/workspace' && document.querySelector('.kpi strong') !== null"));
         await send('Page.reload');
@@ -185,6 +186,37 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
             await until(()=>evaluate("document.querySelector('[name=application_name]')?.value==='Browser fixture settings'"));
             await send('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});
             console.log('Chrome: self profile and mobile application settings save and refresh PASS');
+
+            const downloadDirectory=path.join(runtime,'limited-reports');
+            await fs.mkdir(downloadDirectory);
+            await send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloadDirectory});
+            for (const [direction,title,format] of [['incoming','Reports In','xlsx'],['outgoing','Reports Out','pdf']]) {
+                await send('Page.navigate',{url:origin+'/workspace/reports/'+direction+'?show=15&q=Fixture'});
+                await until(()=>evaluate("document.querySelector('h1')?.innerText==="+JSON.stringify(title)+" && document.querySelector('tbody tr')?.innerText.includes('Subcategory unavailable')"));
+                assert.ok(await evaluate("document.querySelector('[role=status]')?.innerText.includes('current legacy schema')"));
+                await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==="+JSON.stringify(format==='xlsx'?'Excel':'PDF')+").click()");
+                const data=await until(()=>fs.readFile(path.join(downloadDirectory,title.replaceAll(' ','-')+'.'+format)));
+                if (format==='xlsx') {
+                    const spreadsheet=await require('../../frontend/node_modules/jszip').loadAsync(data);
+                    const sheet=await spreadsheet.file('xl/worksheets/sheet1.xml').async('string');
+                    assert.match(sheet,/Subcategory unavailable/);
+                    assert.match(sheet,/Fixture WO/);
+                    assert.equal([...sheet.matchAll(/<row\b/g)].length,16);
+                } else {
+                    assert.equal(data.subarray(0,5).toString(),'%PDF-');
+                    assert.match(data.toString('latin1'),/\/MediaBox \[0 0 1190\.\d+ 841\.\d+\]/);
+                }
+            }
+            await send('Page.navigate',{url:origin+'/workspace/settings/visual'});
+            await until(()=>evaluate("document.querySelector('h1')?.innerText==='Visual settings' && document.querySelector('[name=logo]')!==null && document.querySelector('[name=favicon]')!==null"));
+            const {root}=await send('DOM.getDocument');
+            const {nodeId}=await send('DOM.querySelector',{nodeId:root.nodeId,selector:'input[name=favicon]'});
+            await send('DOM.setFileInputFiles',{nodeId,files:[path.join(runtime,'wo-media','images','fixture.png')]});
+            await evaluate("document.querySelector('form:has([name=favicon])').requestSubmit()");
+            await until(()=>evaluate("document.querySelector('[role=status]')?.textContent==='Favicon updated.' && document.querySelector('img[alt=Favicon]')?.naturalWidth===1"));
+            await send('Page.reload');
+            await until(()=>evaluate("document.querySelector('link[rel=icon]')?.href.includes('/brand/favicon') && document.querySelector('img[alt=Favicon]')?.naturalWidth===1"));
+            console.log('Chrome: exact-schema Reports In/Out, XLSX limitation content, PDF A3 and favicon upload/refresh PASS');
         }
 
         await evaluate("document.querySelector('summary[aria-label=\"Profile menu\"]').click(); [...document.querySelectorAll('.popover button')].find(b=>b.textContent.includes('Sign out')).click()");

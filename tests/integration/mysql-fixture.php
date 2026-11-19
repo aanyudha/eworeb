@@ -19,7 +19,7 @@ function buildReplyFixture(mysqli $fixture): void
     $source->query('START TRANSACTION READ ONLY');
     try {
         foreach (['users','users_logs','roles_permissions','settings','general_settings','posts','posts_logs',
-            'corps','categories','locations','departments','languages','post_images','post_audios','audios'] as $table) {
+            'corps','categories','locations','departments','languages','visual_settings','post_images','post_audios','audios'] as $table) {
             $ddl = $source->query('SHOW CREATE TABLE ' . $table)->fetch_row()[1];
             if (!preg_match('/^CREATE TABLE \x60' . $table . '\x60 /', $ddl) || !str_contains($ddl, 'ENGINE=InnoDB')) {
                 throw new RuntimeException('Unexpected legacy table definition.');
@@ -49,7 +49,7 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
 
     $initializer = $action === 'init';
     $replies = ($settings['replies'] ?? false) === true;
-    $refuse = $replies && in_array($action, ['refuse-reply-history', 'refuse-audio-link', 'refuse-settings-timezone'], true);
+    $refuse = $replies && in_array($action, ['refuse-reply-history', 'refuse-audio-link', 'refuse-settings-timezone', 'require-email-verification', 'refuse-avatar'], true);
     $password = $initializer ? $settings['rootPassword'] : ($refuse ? getenv('EWO_REPLY_FIXTURE_ADMIN') : $settings['password']);
     $db = new mysqli('127.0.0.1', $initializer || $refuse ? 'root' : 'ewo_fixture', $password, '', $port);
     if (realpath($db->query('SELECT @@datadir')->fetch_row()[0]) !== $dataDirectory) {
@@ -106,6 +106,8 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
                     ('Different department draft','post',1,5,1,20,1,1,0,0),
                     ('Different corporation draft','post',1,5,2,10,1,1,0,0),
                     ('Fixture audio','audio',9,3,1,10,1,1,1,0)");
+            $db->query("INSERT INTO visual_settings (id,site_block_color,logo,favicon) VALUES (1,'#ffffff',NULL,NULL)");
+            $db->query("UPDATE general_settings SET email_verification=0 WHERE id=1");
             $db->query("INSERT INTO languages (id,name,short_form,language_code,folder_name,text_direction)
                 VALUES (1,'English','en','en','english','ltr')");
             $db->query("INSERT INTO departments (id,lang_id,name,corp_id,parent_id,color)
@@ -127,8 +129,9 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
         if ($replies) {
             $db->query("GRANT UPDATE (category_id,assign_to,edited_by,edited_at,status) ON ewo_fixture.posts TO 'ewo_fixture'@'localhost'");
             $db->query("GRANT INSERT ON ewo_fixture.posts_logs TO 'ewo_fixture'@'localhost'");
-            $db->query("GRANT UPDATE (password,first_name,last_name,email,status) ON ewo_fixture.users TO 'ewo_fixture'@'localhost'");
+            $db->query("GRANT UPDATE (password,first_name,last_name,email,status,avatar) ON ewo_fixture.users TO 'ewo_fixture'@'localhost'");
             $db->query("GRANT INSERT ON ewo_fixture.users TO 'ewo_fixture'@'localhost'");
+            $db->query("GRANT UPDATE (logo,favicon) ON ewo_fixture.visual_settings TO 'ewo_fixture'@'localhost'");
             $db->query("GRANT UPDATE (timezone) ON ewo_fixture.general_settings TO 'ewo_fixture'@'localhost'");
             $db->query("GRANT UPDATE (application_name,about_footer,optional_url_button_name,copyright,contact_address,contact_email,contact_phone)
                 ON ewo_fixture.settings TO 'ewo_fixture'@'localhost'");
@@ -151,6 +154,14 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
     }
     if ($action === 'refuse-audio-link' && $replies) {
         $db->query("REVOKE INSERT ON ewo_fixture.post_audios FROM 'ewo_fixture'@'localhost'");
+        return;
+    }
+    if ($action === 'require-email-verification' && $replies) {
+        $db->query("UPDATE general_settings SET email_verification=1 WHERE id=1");
+        return;
+    }
+    if ($action === 'refuse-avatar' && $replies) {
+        $db->query("REVOKE UPDATE (avatar) ON ewo_fixture.users FROM 'ewo_fixture'@'localhost'");
         return;
     }
     if ($action === 'refuse-settings-timezone' && $replies) {

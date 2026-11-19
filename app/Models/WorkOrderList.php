@@ -55,8 +55,9 @@ final class WorkOrderList
 
         $total = (int) $query->countAllResults(false);
         $query->select('p.id, p.title, p.summary, p.category_id, p.corp_id, p.dept_id, p.role_id, p.user_id, p.created_at, p.edited_at');
+        $subcategoryAvailable = !$report || in_array('subcategory_id', $this->db->getFieldNames('posts'), true);
         if ($report) {
-            $this->addReportColumns($query);
+            $this->addReportColumns($query, $subcategoryAvailable);
         }
         if ($direction === 'drafts') {
             $query->select('p.is_scheduled');
@@ -79,12 +80,16 @@ final class WorkOrderList
         }
         unset($row);
 
-        return ['items' => $rows, 'page' => $page, 'pageSize' => $pageSize, 'total' => $total];
+        $result = ['items' => $rows, 'page' => $page, 'pageSize' => $pageSize, 'total' => $total];
+        if ($report) {
+            $result['subcategory_available'] = $subcategoryAvailable;
+        }
+        return $result;
     }
 
     public function missingColumns(string $direction, bool $report = false): array
     {
-        $required = $report ? ['subcategory_id'] : ($direction === 'scheduled' ? ['intervale', 'published_at'] : []);
+        $required = !$report && $direction === 'scheduled' ? ['intervale', 'published_at'] : [];
         return $required === [] ? [] : array_values(array_diff($required, $this->db->getFieldNames('posts')));
     }
 
@@ -200,15 +205,20 @@ final class WorkOrderList
     }
 
 
-    private function addReportColumns(BaseBuilder $query): void
+    private function addReportColumns(BaseBuilder $query, bool $subcategoryAvailable): void
     {
-        $query->select('category.name AS category_name, child_category.name AS subcategory_name')
+        if ($subcategoryAvailable) {
+            $query->select('child_category.name AS subcategory_name')
+                ->join('categories child_category', 'child_category.id = p.subcategory_id', 'left');
+        } else {
+            $query->select('NULL AS subcategory_name', false);
+        }
+        $query->select('category.name AS category_name')
             ->select('location.name AS location_name, child_location.name AS sublocation_name, department.name AS department_name')
             ->select('author.first_name AS author_first, author.last_name AS author_last, author.role AS author_role')
             ->select('assignee.first_name AS assigned_first, assignee.last_name AS assigned_last, assigned_role.role_name AS assigned_role_name')
             ->select("CASE WHEN p.image_small IS NULL OR p.image_small = '' THEN 0 ELSE 1 END AS has_image", false)
             ->join('categories category', 'category.id = p.category_id', 'left')
-            ->join('categories child_category', 'child_category.id = p.subcategory_id', 'left')
             ->join('locations location', 'location.id = p.location_id AND location.corp_id = p.corp_id', 'left')
             ->join('locations child_location', 'child_location.id = p.sublocation_id AND child_location.corp_id = p.corp_id', 'left')
             ->join('departments department', 'department.id = p.dept_id AND department.corp_id = p.corp_id', 'left')
