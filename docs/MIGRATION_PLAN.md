@@ -290,3 +290,21 @@ Route bahasa dinamis memakai tabel languages dan general_settings. Daftar ini be
 - `report_controller/reports1_XLS`
 - `report_controller/reports2_XLS`
 - `rss_controller/delete_feed_image`
+
+## Pembaruan runtime dan dashboard, 19 November 2026 WIB
+
+Target aktif adalah `C:/xampp8512/htdocs/eworeb`. Sumber CI3 tetap di `C:/xampp8212/htdocs/ewo`. Paket aktual tetap CI4 4.7.6. Path bootstrap dan manifest pada checkout ini telah diselaraskan dengan vendor stabil. PHP CLI XAMPP adalah 8.5.12. Apache harus memetakan `/eworeb` ke `public/`, dengan izin baca HTTP hanya pada public. Lihat [contoh Alias](eworeb-apache.conf.example) dan [progres runtime](MIGRATION_PROGRESS.md). [Apache mod_alias](https://httpd.apache.org/docs/2.4/mod/mod_alias.html)
+
+### Kontrak dashboard
+
+| Akun | Ringkasan | Scope |
+| --- | --- | --- |
+| Key admin dan ID 1 | Incoming dan Outgoing agregat | CI3 sudah menghitung keduanya. Corporation dari corpnya, role tujuan dari role untuk Incoming, department asal dari department untuk Outgoing. |
+| ID 7/8 | Rekap Incoming Engineering, IT, Housekeeping | Corporation akun. Engineering 3, IT 5, Housekeeping 6. IT Waiting tetap memakai role 3 seperti perhitungan CI3. |
+| ID 3/5/6 | Incoming dan Outgoing | Incoming corporation dan role tujuan sendiri. Outgoing corporation, department asal dan role tujuan selain role akun. |
+| ID 4 | Incoming dan Outgoing | Incoming corporation, role tujuan, pembuat akun dan department. Outgoing sama seperti cabang 3/5/6. |
+| ID lain, admin key/ID tidak selaras, atau scope sesi tidak lengkap | Statistik dihentikan | Tidak ada query statistik lintas cakupan sebagai fallback. |
+
+Semua hitungan memakai category_id 1 New, 5 Pending, 3 Waiting, 2 Progress, dan 4 Closed. Syarat visibility, status publikasi, dan jadwal tetap 1, 1, dan 0. Pengelompokan SQL mempertahankan hitungan CI3 dengan SELECT saja. Aktivitas autentikasi tetap dicatat pada jalur existing. Sidebar mengarah ke dashboard, bagian statistik yang bisa dilihat, dan logout.
+
+Panel Engineering, HK dan IT pada tampilan admin CI3 menunjuk ketiga-tiganya ke angka Outgoing agregat. Tampilan CI4 menyajikan angka tersebut sebagai agregat Outgoing dan menunda atribusi departemen admin sampai definisinya disepakati. Query Incoming global sudah tersedia di CI3, tetapi angka itu sebelumnya tidak ditampilkan untuk admin. Scope agregat Incoming CI4 mengikuti query CI3. Rekap 7/8 dan cabang akun biasa mengikuti panel yang ditampilkan CI3.

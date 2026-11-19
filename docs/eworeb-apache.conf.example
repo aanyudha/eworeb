@@ -1,0 +1,21 @@
+# Include this example from the Apache server or localhost VirtualHost configuration.
+# Use the PHP 8.5.12 module and enable intl in its loaded php.ini.
+Alias "/eworeb" "C:/xampp8512/htdocs/eworeb/public"
+
+<Directory "C:/xampp8512/htdocs/eworeb">
+    Options -Indexes
+    Require all denied
+</Directory>
+
+<Directory "C:/xampp8512/htdocs/eworeb/public">
+    Options -Indexes -MultiViews
+    AllowOverride None
+    AuthMerging Off
+    Require all granted
+    DirectoryIndex index.php
+    FallbackResource /eworeb/index.php
+
+    <FilesMatch "^\.">
+        Require all denied
+    </FilesMatch>
+</Directory>

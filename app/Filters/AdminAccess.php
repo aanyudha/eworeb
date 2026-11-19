@@ -25,7 +25,7 @@ final class AdminAccess implements FilterInterface
         $identity->recordActivity($user, $request->getIPAddress());
         foreach ($arguments ?? [] as $permission) {
             if (!$identity->allows($user, $permission)) {
-                return redirect()->to(site_url('/'));
+                return service('response')->setStatusCode(403)->setBody('Forbidden');
             }
         }
 

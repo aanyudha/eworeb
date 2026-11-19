@@ -14,13 +14,11 @@
 # ENVIRONMENT
 #--------------------------------------------------------------------
 
-CI_ENVIRONMENT = development
 
 #--------------------------------------------------------------------
 # APP
 #--------------------------------------------------------------------
 
-app.baseURL = http://192.168.1.122
 # If you have trouble with `.`, you could also use `_`.
 # app_baseURL = ''
 # app.forceGlobalSecureRequests = false
@@ -30,13 +28,6 @@ app.baseURL = http://192.168.1.122
 # DATABASE
 #--------------------------------------------------------------------
 
-database.default.hostname = localhost
-database.default.database = eworeb
-database.default.username = root
-database.default.password = 12345
-database.default.DBDriver = MySQLi
-database.default.DBPrefix =
-database.default.port = 3310
 
 # If you use MySQLi as tests, first update the values of Config\Database::$tests.
 # database.tests.hostname = localhost
@@ -67,3 +58,16 @@ database.default.port = 3310
 #--------------------------------------------------------------------
 
 # logger.threshold = 4
+
+# Local Apache Alias. For Spark use the matching loopback URL and port.
+# app.baseURL = "http://localhost/eworeb/"
+# CI_ENVIRONMENT = production
+
+# Configure these in the ignored .env using an approved database.
+# database.ewo.hostname = 127.0.0.1
+# database.ewo.database =
+# database.ewo.username =
+# database.ewo.password =
+# database.ewo.DBDriver = MySQLi
+# database.ewo.port = 3306
+# ewo.sessionKey =

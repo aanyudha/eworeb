@@ -1,0 +1,4 @@
+# Apache must map /eworeb to public/ using the example in docs/.
+# Deny requests that fall through to the project directory under htdocs.
+Options -Indexes
+Require all denied

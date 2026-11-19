@@ -1,5 +1,56 @@
 # Progres migrasi EWO
 
+## Runtime dan dashboard, 19 November 2026 WIB
+
+Target lokal kini `C:/xampp8512/htdocs/eworeb`. Catatan 18 November di bawah adalah riwayat checkout sebelumnya. Login admin sekarang membuka dashboard yang menghitung data setelah pemeriksaan `admin_panel`. Apache utama belum diberi Alias. Semua verifikasi berjalan pada fixture terisolasi.
+
+| Pemeriksaan | Hasil |
+| --- | --- |
+| Startup | Spark menggunakan public/index.php dan vendor CI4 framework 4.7.6. Checkout sebelumnya menunjuk vendor dev-develop yang tidak ada sehingga bootstrap CLI dan web gagal. Manifest diselaraskan dan Composer validate --strict lulus. Composer PHAR lama mencatat deprecation saat dijalankan dengan PHP 8.5. |
+| Apache | Konfigurasi XAMPP menunjuk DocumentRoot htdocs dan mengaktifkan Indexes. Karena root project tidak berisi index.php, Apache sebelumnya menampilkan direktori. Root project sekarang menolak akses langsung. Contoh Alias lulus parser konfigurasi instalasi dan smoke Apache loopback. Login dan CSS dapat diakses melalui Alias. app, vendor, writable, env, .env dan .git mengembalikan 403/404. |
+| PHP 8.5.12 | Lint lulus pada tujuh file PHP yang berubah dan public/index.php. Unit/session existing lulus 7 tes dan 32 assertion. Suite migration/seed bawaan starter tidak dijalankan. |
+| HTTP dan browser | Spark menggunakan .env sintetis serta SQLite dengan kolom legacy. Login, guest, akun diblokir, password salah, CSRF, permission dan logout lulus. Role tanpa admin_panel mendapat 403 agar redirect ke root yang juga dilindungi tidak berulang. Scope role ID tidak dikenal juga ditolak. Chrome mengirim form login, merender dashboard, memuat CSS/JS lokal dan membuka sidebar pada lebar 390 px. |
+| Parity dashboard | Enam skenario CI3 dibandingkan terhadap dashboard HTTP CI4 dengan baris yang sama. Skenario mencakup admin, filter corporation/role/department, employee, Engineering, admin corporation, dan GM. Aktivitas login tercatat dan jumlah dan SHA-256 isi 134 baris WO fixture tetap sama. Tidak ada akses database produksi. |
+
+### File tahap ini
+
+- Runtime dan kemasan. `.htaccess`, `app/Config/Paths.php`, `composer.json`, `phpunit.dist.xml`, dan `docs/eworeb-apache.conf.example`. Versi dan hash paket di composer.lock tetap sama.
+- Environment. `.env` lokal diabaikan Git. Perubahan hanya pada baseURL. `env` yang dilacak sebelumnya berisi isian koneksi database dan password. Isian aktif dihapus dari template dan diganti contoh kosong untuk `database.ewo.*` dan `ewo.sessionKey`. Riwayat Git tidak diubah. Pemilik perlu menilai apakah nilai yang pernah tercatat masih berlaku.
+- Dashboard. `app/Controllers/AdminController.php`, `app/Filters/AdminAccess.php`, `app/Models/DashboardRepository.php`, `app/Views/admin/dashboard.php`, serta `public/assets/admin/css/dashboard.css` dan aset jQuery, Bootstrap, AdminLTE dari baseline CI3.
+- Pengujian. `tests/integration/auth-http.cjs`, `auth-http-fixture.php`, `browser.cjs` dan `legacy-dashboard.php`. Fixture mengaktifkan ekstensi dari direktori PHP 8.5.12 dan memakai sesi/DB sintetis. Oracle CI3 memuat model read-only, tanpa bootstrap CI3.
+- Dokumentasi. `docs/MIGRATION_PLAN.md` dan laporan ini.
+
+### Konfigurasi Apache yang perlu diterapkan pemilik
+
+Instalasi memuat modul PHP Apache dari folder XAMPP 8.5.12 dan memiliki modul Alias. Pada `C:/xampp8512/php/php.ini`, `extension=intl` masih dikomentari. Aktifkan intl untuk PHP Apache, lalu masukkan Include berikut pada konfigurasi server atau VirtualHost localhost yang berlaku.
+
+```apache
+Include "C:/xampp8512/htdocs/eworeb/docs/eworeb-apache.conf.example"
+```
+
+Validasi dengan `C:/xampp8512/apache/bin/httpd.exe -t -f C:/xampp8512/apache/conf/httpd.conf` sebelum memuat ulang Apache milik pemilik. `.env` lokal menggunakan `app.baseURL = "http://localhost/eworeb/"`. Setelah Alias aktif, root proyek tetap diblokir dan login berada di `/eworeb/admin/login`. Alias tidak diterapkan otomatis. Proses Apache utama tidak dinyalakan atau di-restart dalam tugas ini.
+
+POST login memakai config `database.ewo.*` dan `ewo.sessionKey` yang dibaca dari .env. Grup tersebut perlu diisi pemilik dengan koneksi yang disetujui dan kunci sesi privat. Login belum bisa digunakan dengan database nyata selama grup belum dikonfigurasi. `database.default.*` dipertahankan di .env lokal dan tidak digunakan oleh auth/dashboard. Untuk Spark gunakan URL loopback beserta portnya sebagai baseURL.
+
+### Perbedaan dan batas penerimaan
+
+- Dashboard admin menampilkan Incoming dan Outgoing agregat dari query CI3. Tiga kartu departemen admin CI3 memakai satu hitungan Outgoing yang sama. Atribusi department admin belum ditetapkan. Rekap role 7/8 mempertahankan IT Waiting yang menghitung role Engineering 3.
+- Statistik role tak dikenal atau scope akun yang tidak lengkap ditahan. CI3 memiliki jalur fallthrough yang dapat menghitung secara global. Role tanpa permission tidak melihat dashboard dan menerima 403.
+- Fixture SQLite tidak membuktikan parity MySQL/MariaDB atau konfigurasi produksi. Work Order CRUD, Reports, ekspor, dan master data di luar perubahan ini. Halaman tersebut tidak diberi tautan sidebar yang belum berfungsi.
+- Pemeriksaan Git hanya `git status --short --branch`, `git diff --check`, dan `git diff --stat`, dengan safe.directory sementara lewat opsi -c. Source CI3 dan konfigurasi Apache/PHP di luar target tetap dibaca saja. Tidak ada commit, push, deployment, atau perubahan database produksi.
+
+### Ulangi pengujian
+
+```powershell
+$env:EWO_LEGACY_SOURCE = 'C:/xampp8212/htdocs/ewo'
+$env:EWO_TEST_BROWSER = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+node tests/integration/auth-http.cjs C:/xampp8512/php/php.exe
+```
+
+Runner membuka Spark loopback dengan ekstensi fixture, URL port aktual, dan SQLite sintetis. Server yang dipakai fixture ditutup setelah pengujian.
+
+## Riwayat 18 November 2026 WIB
+
 Status 18 November 2026 WIB. Tahap A terverifikasi lokal dan tahap B berjalan sebagian. Target memakai CodeIgniter 4.7.6. Dashboard CI4 yang terlindungi masih mengembalikan HTTP 501 setelah login yang valid. Status ini menandai bahwa dashboard belum tersedia.
 
 | Tahap atau modul | Status | Perbandingan dan hasil uji |
