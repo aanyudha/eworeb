@@ -9,6 +9,8 @@ use CodeIgniter\Database\BaseConnection;
 
 final class AdminDirectory
 {
+    public const ROLE_EDIT_FIELDS = ['admin_panel', 'add_post', 'manage_all_posts', 'navigation', 'categories', 'users', 'settings'];
+
     public const VIEWS = [
         'categories' => ['categories', 'categories', 'Categories'],
         'subcategories' => ['categories', 'categories', 'Subcategories'],
@@ -98,6 +100,38 @@ final class AdminDirectory
 
         $items = $query->orderBy('record.id')->get($size, ($page - 1) * $size)->getResultArray();
         return ['items' => $items, 'page' => $page, 'pageSize' => $size, 'total' => $total];
+    }
+
+    public function roleOptions(int $id): array
+    {
+        return ['fields' => $this->editableRole($id), 'checks' => self::ROLE_EDIT_FIELDS];
+    }
+
+    public function saveRole(int $id, array $input): array
+    {
+        $this->editableRole($id);
+        $changes = [];
+        foreach (self::ROLE_EDIT_FIELDS as $field) {
+            $value = $input[$field] ?? null;
+            if ($value !== '0' && $value !== '1') {
+                throw new \DomainException('Check the selected role permissions.', 422);
+            }
+            $changes[$field] = (int)$value;
+        }
+        if (!$this->db->table('roles_permissions')->where(['id' => $id, 'id >' => 1, 'role !=' => 'admin'])->update($changes)) {
+            throw new \RuntimeException('Could not save role permissions.');
+        }
+        return ['id' => $id];
+    }
+
+    private function editableRole(int $id): array
+    {
+        $row = $this->db->table('roles_permissions')->select(self::ROLE_EDIT_FIELDS)
+            ->where(['id' => $id, 'id >' => 1, 'role !=' => 'admin'])->get()->getRowArray();
+        if ($row === null) {
+            throw new \DomainException('Editable role not found.', 404);
+        }
+        return $row;
     }
 
     private function roles(string $search, int $page): array

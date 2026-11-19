@@ -42,6 +42,8 @@ final class WorkspaceController extends BaseController
         $workOrders = $workOrderRole !== null ? new WorkOrderList(Database::connect('ewo')) : null;
         return $this->response->setHeader('Cache-Control', 'private, no-store')->setBody(view('admin/workspace', [
             'entry' => $entry,
+            'passwordAccess' => AccountController::canChangePassword($viewer),
+            'settingsAccess' => $viewer !== null && $identity->allows($viewer, 'settings'),
             'workOrderRole' => $workOrderRole,
             'scheduleAccess' => $workOrders !== null && $identity->allows($viewer, 'manage_all_posts')
                 && $workOrders->missingColumns('scheduled') === [],

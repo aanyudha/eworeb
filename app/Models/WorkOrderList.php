@@ -58,6 +58,9 @@ final class WorkOrderList
         if ($report) {
             $this->addReportColumns($query);
         }
+        if ($direction === 'drafts') {
+            $query->select('p.is_scheduled');
+        }
         if ($direction === 'scheduled') {
             $query->select('p.intervale, p.published_at');
         } elseif ($direction !== 'drafts') {
@@ -141,6 +144,21 @@ final class WorkOrderList
             : $query->get()->getRowArray();
     }
 
+
+    public function publishDraft(array $viewer, int $id): bool
+    {
+        if (!(new DashboardRepository($this->db))->supports($viewer)) {
+            throw new DomainException('Work order scope is unavailable.', 403);
+        }
+
+        $query = $this->db->table('posts p')->where('p.id', $id)->where('p.status !=', 1)
+            ->where('p.is_scheduled', 0);
+        $this->applyDirectionalScope($query, $viewer, [], false);
+        if (!$query->update(['status' => 1])) {
+            throw new \RuntimeException('Could not publish the draft.');
+        }
+        return $this->db->affectedRows() === 1;
+    }
 
     private function applyDirectionalScope(BaseBuilder $query, array $viewer, array $filters, bool $incoming): void
     {

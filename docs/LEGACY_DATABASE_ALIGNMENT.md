@@ -1,5 +1,21 @@
 # Audit dan penyelarasan database EWO legacy
 
+## Audit ulang schema aktif dan kontrak modul, 19 November 2026 WIB
+
+Metadata baca-saja MySQL 8.0.45 TCP 3310 mengembalikan 18 tabel, 248 kolom, 18 indeks dan 0 foreign key pada `ewohotel_tentrem` dan `eworeb`. Kedua schema tidak memiliki ketiga kolom di posts maupun posts_logs. `ewohotel_tntrm.sql`, `final_db_deploy.sql` dan `user.sql` dibaca sebagai berkas lokal. Riwayat commit CI3 dibaca untuk melacak perubahan terjadwal. Dump lama tidak dieksekusi.
+
+| Field | Penggunaan dan arti | Bukti historis dan perubahan minimum untuk ditinjau |
+| --- | --- | --- |
+| `published_at` | `Post_admin_model::add_post` dan `add_post_logs` mengisi nilai ini saat membuat WO biasa atau terjadwal. Query `check_scheduled_posts` memilih WO pada menit yang sesuai. `update_sch_wo` maju ke tanggal berikutnya. View menampilkan tanggal berikutnya dan sisa hari. | Kode penjadwalan historis terlihat pada `97689d26` dan `277a5f98`. Tiga dump tidak memberi definisi atau nilai asli. `created_at` menunjukkan waktu pembuatan. Untuk membuka Create/Scheduled, verifikasi definisi kolom dan sumber tanggal asli untuk posts serta posts_logs, lalu review perubahan aditif dan dampak jadwal. |
+| `intervale` | Form dan model menyimpan jumlah hari untuk pengulangan. `Cron_controller::check_scheduled_posts` mengirim nilai ke `DATE_ADD` dan model menulisnya juga pada histori. | Kode historis menunjukkan semantik hari. Nilai dan tipe database tidak ditemukan dalam tiga dump atau metadata aktif. Pulihkan definisi dan nilai terverifikasi dari backup terjadwal sebelum mengusulkan perubahan. |
+| `subcategory_id` | `reports_in.php` dan `reports_out.php` mengambil label subkategori dengan `helper_get_category`. Model legacy membaca filter `subcategory` tanpa predikat subkategori. CI4 memakai kolom yang sama dalam join label laporan. | `final_db_deploy.sql` versi awal menyimpan definisi `INT(11) DEFAULT NULL` pada posts dan posts_logs. Nilai per WO historis tidak terverifikasi. Untuk laporan, tinjau perubahan aditif minimum pada posts setelah bukti nilai atau konfirmasi pemilik tentang semantik NULL. Pertahankan label, filter dan hasil ekspor sampai rekonsiliasi selesai. |
+
+Source aktif yang tersedia masih merujuk ketiga field tersebut. Tidak ditemukan implementasi setara berbasis field yang tersedia, atau nilai historis yang layak dipakai untuk backfill. Tanggal pembuatan, kategori status WO dan hubungan child master memiliki arti berbeda dari ketiga field tersebut.
+
+Pemanggilan `Post_admin_model::publish_draft` hanya menulis `posts.status = 1`. CI4 mengikuti scope daftar Draft dan menolak publikasi jadwal dari endpoint Draft. Untuk special types, CI3 memilih view video, audio, gallery, dan ordered list. Model `Post_item_model` memakai tabel `post_gallery_items` dan `post_ordered_list_items` yang absen. Tabel `videos`, `audios` dan `post_audios` tersedia. Salinan MySQL terotorisasi hanya memiliki WO bertipe post. Unggahan audio memakai metadata dan relasi legacy pada fixture dengan tipe audio. Jalur ganti metadata dan edit lengkap audio/video perlu uji parity terpisah, termasuk histori dan lampiran.
+
+Master Data memakai enam menu yang aktif. Form CI3 hanya menampilkan perubahan status eksplisit pada visibility Categories. Pembuatan Departments memakai visibility 1 dari input tersembunyi. Form Corporations hanya mengedit nama, kode dan urutan. CI4 menahan perpindahan corporation dan perubahan parent atau bahasa pada record existing untuk melindungi referensi WO. Enam kategori status WO inti dilindungi.
+
 ## Kontrak balasan Work Order dari CI3, 19 November 2026 WIB
 
 - Controller Post_controller::add_post_post memvalidasi title wajib hingga 500, summary hingga 5.000, kategori, lokasi, role tujuan, dan optional_url hingga 1.000. Post_admin_model::add_post memakai corporation/department akun non-admin, mengambil pilihan form untuk administrator, mengisi user_id dari sesi, dan menulis published_at untuk WO biasa maupun scheduled. Form New memilih kategori ID 1. Controller menambah log, referensi gambar/audio sesuai post_type, dan secara kondisional menjalankan pengiriman ke subscriber. Kedua tabel target tidak memiliki published_at. Create dan penjadwalan tidak diaktifkan.

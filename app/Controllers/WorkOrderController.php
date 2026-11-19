@@ -19,6 +19,32 @@ final class WorkOrderController extends BaseController
         return $this->list($direction, false);
     }
 
+    public function publishDraft(string $order): ResponseInterface
+    {
+        $response = $this->response->setHeader('Cache-Control', 'private, no-store');
+        if (env('ewo.workOrderWrites', false) !== true) {
+            return $response->setStatusCode(503)->setJSON(['error' => 'Draft publication is disabled in this environment.']);
+        }
+        $viewer = service('ewoIdentity')?->currentUser();
+        if ($viewer === null || (int)$viewer['status'] !== 1) {
+            return $response->setStatusCode(403)->setJSON(['error' => 'Draft publication permission is unavailable.']);
+        }
+        $id = filter_var($order, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($id === false) {
+            return $response->setStatusCode(422)->setJSON(['error' => 'Check the Work Order ID.']);
+        }
+        try {
+            if (!(new WorkOrderList(Database::connect('ewo')))->publishDraft($viewer, $id)) {
+                return $response->setStatusCode(404)->setJSON(['error' => 'Publishable draft not found.']);
+            }
+            return $response->setJSON(['id' => $id]);
+        } catch (DomainException) {
+            return $response->setStatusCode(403)->setJSON(['error' => 'Work order scope is unavailable.']);
+        } catch (\RuntimeException) {
+            return $response->setStatusCode(503)->setJSON(['error' => 'Could not publish the draft.']);
+        }
+    }
+
     public function report(string $direction): ResponseInterface
     {
         return $this->list($direction, true);
@@ -72,7 +98,11 @@ final class WorkOrderController extends BaseController
                     'error' => 'This menu is unavailable because the legacy schema lacks ' . implode(', ', $missing) . '.',
                 ]);
             }
-            return $response->setJSON($list->page($viewer, $direction, $filters, $page, $pageSize, $report));
+            $data = $list->page($viewer, $direction, $filters, $page, $pageSize, $report);
+            if ($direction === 'drafts' && env('ewo.workOrderWrites', false) === true && (int)$viewer['status'] === 1) {
+                $data['publish_csrf'] = ['header' => csrf_header(), 'hash' => csrf_hash()];
+            }
+            return $response->setJSON($data);
         } catch (DomainException) {
             return $response->setStatusCode(403)->setJSON(['error' => 'Work order scope is unavailable.']);
         } catch (DatabaseException) {

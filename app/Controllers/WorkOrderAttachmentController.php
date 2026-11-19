@@ -15,22 +15,40 @@ final class WorkOrderAttachmentController extends BaseController
 {
     public function index(string $direction, string $order): ResponseInterface
     {
-        return $this->run($direction, $order, function (array $entries, WorkOrderAttachments $media) use ($direction, $order): ResponseInterface {
+        return $this->run($direction, $order, function (array $post, WorkOrderAttachments $media, array $viewer) use ($direction, $order): ResponseInterface {
             $items = [];
-            foreach ($entries as $entry) {
+            foreach ($media->entries($post) as $entry) {
                 $download = $media->resolve($entry) === null ? null : site_url(
                     'api/v1/work-orders/' . $direction . '/' . $order . '/attachments/' . $entry['kind'] . '/' . $entry['id']
                 );
                 $items[] = ['kind' => $entry['kind'], 'id' => $entry['id'], 'label' => $entry['label'], 'download' => $download];
             }
-            return $this->response->setJSON(['items' => $items]);
+            $kind = $media->uploadKind($viewer, $direction, $post);
+            $upload = $kind === null ? [] : ['upload' => ['kind' => $kind, 'header' => csrf_header(), 'hash' => csrf_hash()]];
+            return $this->response->setJSON(['items' => $items] + $upload);
+        });
+    }
+
+    public function upload(string $order, string $kind): ResponseInterface
+    {
+        if (env('ewo.workOrderWrites', false) !== true) {
+            return $this->response->setHeader('Cache-Control', 'private, no-store')->setStatusCode(503)
+                ->setJSON(['error' => 'Attachment uploads are disabled in this environment.']);
+        }
+        return $this->run('incoming', $order, function (array $post, WorkOrderAttachments $media, array $viewer) use ($kind): ResponseInterface {
+            if ($media->uploadKind($viewer, 'incoming', $post) !== $kind) {
+                throw new DomainException('This Work Order cannot accept attachments.', 403);
+            }
+            $media->upload($viewer, 'incoming', (int)$post['id'], $kind, $this->request->getFile('attachment'),
+                $this->request->getPost(['audio_name', 'musician', 'download_button']));
+            return $this->response->setStatusCode(201)->setJSON(['uploaded' => true]);
         });
     }
 
     public function download(string $direction, string $order, string $kind, string $id): ResponseInterface
     {
-        return $this->run($direction, $order, function (array $entries, WorkOrderAttachments $media) use ($kind, $id): ResponseInterface {
-            foreach ($entries as $entry) {
+        return $this->run($direction, $order, function (array $post, WorkOrderAttachments $media) use ($kind, $id): ResponseInterface {
+            foreach ($media->entries($post) as $entry) {
                 if ($entry['kind'] === $kind && (string)$entry['id'] === $id && ($file = $media->resolve($entry)) !== null) {
                     return $this->response->download($file, null)
                         ->setHeader('Cache-Control', 'private, no-store')->setHeader('X-Content-Type-Options', 'nosniff');
@@ -58,9 +76,9 @@ final class WorkOrderAttachmentController extends BaseController
                 return $response->setStatusCode(404)->setJSON(['error' => 'Work Order not found.']);
             }
             $media = new WorkOrderAttachments($db);
-            return $operation($media->entries($post), $media);
-        } catch (DomainException) {
-            return $response->setStatusCode(403)->setJSON(['error' => 'Work Order scope is unavailable.']);
+            return $operation($post, $media, $viewer);
+        } catch (DomainException $error) {
+            return $response->setStatusCode($error->getCode())->setJSON(['error' => $error->getMessage()]);
         } catch (RuntimeException) {
             return $response->setStatusCode(503)->setJSON(['error' => 'Attachments are unavailable.']);
         }

@@ -11,9 +11,11 @@ import KnowledgeAdmin from './KnowledgeAdmin'
 import WorkOrders from './WorkOrders'
 import WorkOrderDetail from './WorkOrderDetail'
 import AdminDirectory from './AdminDirectory'
+import AccountPassword from './AccountPassword'
+import WorkspaceSettings from './WorkspaceSettings'
 
 const mount = document.getElementById('root')!
-const { workspace, dashboardApi, login, logout, workOrdersApi, reportsApi, workOrderRole, knowledgeEditor, scheduleAccess, replyAccess } = mount.dataset
+const { workspace, dashboardApi, login, logout, workOrdersApi, reportsApi, workOrderRole, knowledgeEditor, scheduleAccess, replyAccess, passwordApi, profileApi, settingsApi } = mount.dataset
 const directoryViews = JSON.parse(mount.dataset.directoryViews || '[]') as { path: string; label: string; endpoint: string }[]
 const queryClient = new QueryClient()
 const formats = new Intl.NumberFormat()
@@ -134,6 +136,9 @@ function Workspace() {
   )
   const directoryLinks = directoryViews.map(({ path, label }) => ({ path, label, preserveSearch: false }))
   links.push(...directoryLinks)
+  if (profileApi) links.push({ path: '/account/profile', label: 'My profile', preserveSearch: false })
+  if (settingsApi) links.push({ path: '/settings/application', label: 'Application settings', preserveSearch: false })
+  if (passwordApi) links.push({ path: '/account/password', label: 'Change password', preserveSearch: false })
   return <AppShell viewer={data?.viewer} sections={links}
     search={search} onSearch={setSearch} onLogout={() => setConfirm(true)}>
     <Routes>
@@ -148,7 +153,10 @@ function Workspace() {
       {reportsApi && <Route path="/reports/incoming" element={<WorkOrders key="reports-in" endpoint={reportsApi} direction="incoming" role={Number(workOrderRole)} report />} />}
       {reportsApi && <Route path="/reports/outgoing" element={<WorkOrders key="reports-out" endpoint={reportsApi} direction="outgoing" role={Number(workOrderRole)} report />} />}
       {directoryViews.map(({ path, label, endpoint }) =>
-        <Route key={path} path={path} element={<AdminDirectory endpoint={endpoint} title={label} />} />)}
+        <Route key={path} path={path} element={<AdminDirectory key={endpoint} endpoint={endpoint} title={label} />} />)}
+      {profileApi && <Route path="/account/profile" element={<WorkspaceSettings key="profile" endpoint={profileApi} title="My profile" />} />}
+      {settingsApi && <Route path="/settings/application" element={<WorkspaceSettings key="settings" endpoint={settingsApi} title="Application settings" />} />}
+      {passwordApi && <Route path="/account/password" element={<AccountPassword endpoint={passwordApi} />} />}
       {knowledgeAdmin && <Route path="/knowledge/*" element={<KnowledgeAdmin />} />}
       <Route path="*" element={<ErrorState message="This workspace page does not exist." action={<NavLink to="/">Return to dashboard</NavLink>} />} />
     </Routes>

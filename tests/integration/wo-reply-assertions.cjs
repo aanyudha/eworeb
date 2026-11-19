@@ -1,6 +1,7 @@
 const assert=require('node:assert/strict')
+const {readdirSync}=require('node:fs')
 
-module.exports=async function replyAssertions(request,login,location,audit) {
+module.exports=async function replyAssertions(request,login,location,audit,audioDirectory) {
   await request('/logout')
   const inactive='/api/v1/work-orders/incoming/1/reply'
   assert.equal((await request(inactive)).status,401)
@@ -24,6 +25,28 @@ module.exports=async function replyAssertions(request,login,location,audit) {
   const traversal=media.items.find(item=>item.kind==='image')
   assert.equal(traversal.download,null)
   assert.equal((await request(mediaPath+'/image/'+traversal.id)).status,404)
+  async function uploadImage(file, filename, csrf) {
+    const data = new FormData()
+    data.set('attachment', new Blob([file]), filename)
+    const headers = { 'X-Requested-With': 'XMLHttpRequest' }
+    if (csrf) headers[csrf.header] = csrf.hash
+    return request(mediaPath + '/image', data, { headers })
+  }
+  assert.equal(media.upload.kind, 'image')
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFcQAAAAASUVORK5CYII=', 'base64')
+  assert.equal((await uploadImage(png, 'attachment.png')).status, 403)
+  assert.equal((await uploadImage('invalid content', 'attachment.png', media.upload)).status, 422)
+  const fresh = await (await request(mediaPath)).json()
+  assert.equal(fresh.items.length, media.items.length)
+  const uploaded = await uploadImage(png, 'attachment.png', fresh.upload)
+  assert.equal(uploaded.status, 201, await uploaded.clone().text())
+  const updatedMedia = await (await request(mediaPath)).json()
+  const newImage = updatedMedia.items.find(item => item.kind === 'image' && item.id !== traversal.id)
+  assert.ok(newImage?.download)
+  const imageResponse = await request(mediaPath + '/image/' + newImage.id)
+  assert.deepEqual(Buffer.from(await imageResponse.arrayBuffer()), png)
+  assert.deepEqual(state(), original, 'attachment upload only updates attachment relations')
+
   async function options(){
     const response=await request(path)
     assert.equal(response.status,200,await response.clone().text())
@@ -85,6 +108,87 @@ module.exports=async function replyAssertions(request,login,location,audit) {
   const failed=await reply({...payload,revision:rollback.revision,category_id:'2'})
   assert.equal(failed.status,503,await failed.clone().text())
   assert.deepEqual(state(),reopenedState,'History failure must roll back the Work Order update')
+  const draftsPath = '/api/v1/work-orders/drafts'
+  const drafts = await (await request(draftsPath)).json()
+  const draft = drafts.items.find(item => String(item.is_scheduled) === '0')
+  assert.equal(draft?.title, 'Publishable fixture draft')
+  assert.ok(!drafts.items.some(item => item.title.startsWith('Different ')))
+  await request('/logout')
+  assert.equal(location(await login('admin@example.test','fixture-password')),'/workspace')
+  const globalDrafts = await (await request(draftsPath)).json()
+  const excluded = globalDrafts.items.filter(item => item.title.startsWith('Different '))
+  assert.equal(excluded.length, 2)
+  await request('/logout')
+  assert.equal(location(await login('engineering@example.test','fixture-password')),'/workspace')
+  const publishPath = draftsPath + '/' + draft.id + '/publish'
+  const draftBefore = JSON.parse(audit('reply-state', String(draft.id)))
+  const headers = { 'X-Requested-With': 'XMLHttpRequest' }
+  assert.equal((await request(publishPath, {}, { headers })).status, 403)
+  for (const row of excluded) {
+    const deniedToken = (await (await request(draftsPath)).json()).publish_csrf
+    headers[deniedToken.header] = deniedToken.hash
+    assert.equal((await request(draftsPath + '/' + row.id + '/publish', {}, { headers })).status, 404)
+    assert.equal(Number(JSON.parse(audit('reply-state', String(row.id))).order.status), 0)
+  }
+  const check = (await (await request(draftsPath)).json()).publish_csrf
+  headers[check.header] = check.hash
+  const published = await request(publishPath, {}, { headers })
+  assert.equal(published.status, 200, await published.clone().text())
+  assert.deepEqual(JSON.parse(audit('reply-state', String(draft.id))), {
+    ...draftBefore, order: { ...draftBefore.order, status: 1 },
+  })
+  const afterDrafts = await (await request(draftsPath)).json()
+  assert.ok(afterDrafts.items.every(item => item.id !== draft.id))
+  headers[afterDrafts.publish_csrf.header] = afterDrafts.publish_csrf.hash
+  assert.equal((await request(publishPath, {}, { headers })).status, 404)
+  const audioOrders = await (await request('/api/v1/work-orders/incoming?post_type=audio')).json()
+  assert.equal(audioOrders.items.length, 1)
+  const audioPath = '/api/v1/work-orders/incoming/' + audioOrders.items[0].id + '/attachments'
+  const wave = Buffer.alloc(124, 128)
+  wave.write('RIFF', 0)
+  wave.writeUInt32LE(116, 4)
+  wave.write('WAVEfmt ', 8)
+  wave.writeUInt32LE(16, 16)
+  wave.writeUInt16LE(1, 20)
+  wave.writeUInt16LE(1, 22)
+  wave.writeUInt32LE(8000, 24)
+  wave.writeUInt32LE(8000, 28)
+  wave.writeUInt16LE(1, 32)
+  wave.writeUInt16LE(8, 34)
+  wave.write('data', 36)
+  wave.writeUInt32LE(80, 40)
+  async function uploadAudio(allow) {
+    const {upload} = await (await request(audioPath)).json()
+    assert.equal(upload.kind, 'audio')
+    const data = new FormData()
+    data.set('attachment', new Blob([wave]), 'fixture.wav')
+    data.set('audio_name', allow ? 'Downloadable fixture' : 'Private fixture audio')
+    if (allow) data.set('download_button', '1')
+    return request(audioPath + '/audio', data, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest', [upload.header]: upload.hash },
+    })
+  }
+  for (const allow of [false, true]) {
+    const response = await uploadAudio(allow)
+    assert.equal(response.status, 201, await response.clone().text())
+  }
+  const audioEntries = (await (await request(audioPath)).json()).items.filter(item => item.kind === 'audio')
+  assert.equal(audioEntries.length, 2)
+  const privateAudio = audioEntries.find(item => item.label === 'Private fixture audio')
+  assert.equal(privateAudio.download, null)
+  assert.equal((await request(audioPath + '/audio/' + privateAudio.id)).status, 404)
+  const downloadable = audioEntries.find(item => item.label === 'Downloadable fixture')
+  const downloadedAudio = await request(audioPath + '/audio/' + downloadable.id)
+  assert.equal(downloadedAudio.status, 200)
+  assert.deepEqual(Buffer.from(await downloadedAudio.arrayBuffer()), wave)
+  const count = audit('audio-count')
+  const files = readdirSync(audioDirectory).sort()
+  audit('refuse-audio-link')
+  assert.equal((await uploadAudio(true)).status, 503)
+  assert.equal(audit('audio-count'), count, 'audio metadata rolls back if linking fails')
+  assert.deepEqual(readdirSync(audioDirectory).sort(), files, 'Failed link leaves no extra file')
+  console.log('Audio upload: download flag, bytes, relation and transaction rollback PASS')
+  console.log('Work Order draft and image upload: CSRF, status-only publish, stale publish, MIME, attachment relation and bytes PASS')
   console.log('Work Order reply: scope, CSRF, validation, assignment, completion, reopen, stale revision, history and rollback PASS')
 }
 

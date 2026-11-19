@@ -16,6 +16,13 @@
      data-knowledge-admin="<?= esc(site_url('api/v1/admin/kb/articles'), 'attr') ?>"
      data-knowledge-home="<?= esc(site_url('kb'), 'attr') ?>"
      data-dashboard-api="<?= esc(site_url('api/v1/dashboard'), 'attr') ?>"
+     data-profile-api="<?= esc(site_url('api/v1/account/profile'), 'attr') ?>"
+     <?php if ($settingsAccess): ?>
+     data-settings-api="<?= esc(site_url('api/v1/settings/application'), 'attr') ?>"
+     <?php endif; ?>
+     <?php if ($passwordAccess): ?>
+     data-password-api="<?= esc(site_url('api/v1/account/password'), 'attr') ?>"
+     <?php endif; ?>
      <?php if ($workOrderRole !== null): ?>
      data-work-orders-api="<?= esc(site_url('api/v1/work-orders'), 'attr') ?>"
      <?php if ($reportsAccess): ?>

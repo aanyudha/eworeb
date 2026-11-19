@@ -1,6 +1,32 @@
 # Matriks parity EWO CI3 → CI4
 
-## Status dashboard tunggal dan alur WO, 19 November 2026 WIB
+## Status modul dan parity legacy terbaru, 19 November 2026 WIB
+
+| Modul | Status | Cakupan |
+| --- | --- | --- |
+| Login dan dashboard tunggal React | Fully working | Login Apache dengan akun legacy sudah dibuktikan pada tahap sebelumnya. Regresi sekarang memakai MySQL dan Chrome terisolasi. |
+| Incoming, Outgoing, detail dan history | Read-only working | API mengikuti scope WO. Detail mengunduh lampiran lewat relasi dan pemeriksaan izin. Arsip asli belum dipasang. |
+| Balasan, assignment, completion dan reopen tipe post | Write verified on isolated MySQL | Perubahan dan histori dalam satu transaksi dengan pemeriksaan revisi. |
+| Publikasi Draft biasa | Write verified on isolated MySQL | Daftar React dengan konfirmasi. Hanya `status` berubah. Filter scope, penolakan lintas corporation atau department, CSRF dan pengiriman ulang diuji. |
+| Lampiran gambar dan audio | Write verified on isolated MySQL | Gambar tambahan pada tipe post dan audio pada tipe audio untuk Incoming yang memenuhi syarat. Format, izin unduh audio dan rollback diuji. |
+| Categories dan Subcategories | Write verified on isolated MySQL | Tambah dan edit di tabel categories. ID status WO 1–6 terkunci. Validasi parent dan bahasa. |
+| Locations dan Sublocations | Write verified on isolated MySQL | Tambah dan edit dengan corporation dari sesi untuk non-admin. Parent lintas corporation ditolak. |
+| Departments | Write verified on isolated MySQL | Tambah dan edit dengan scope corporation. Form legacy memakai visibility tersembunyi untuk pembuatan. |
+| Corporations | Write verified on isolated MySQL | Administrator menambah dan mengedit nama, kode dan urutan. Form aktif CI3 tidak memiliki kontrol status. |
+| Users dan Administrators | Write verified on isolated MySQL | Administrator menambah akun, mengedit nama dan email, dan mengaktifkan atau menonaktifkan login baru. Sesi yang sudah aktif mengikuti perilaku legacy. Penggantian role, pemindahan corporation atau department dan delegasi mutasi ke pemegang izin users belum diterapkan. |
+| Roles dan Permissions | Write verified on isolated MySQL | Hanya administrator. Tujuh flag yang benar-benar ditulis Auth_model::update_role. Role administrator terlindungi. |
+| My profile | Read-only working | Field akun sendiri. Pengubahan email dan avatar menunggu verifikasi alur aktivasi email serta penyimpanan media profil. |
+| Change password | Write verified on isolated MySQL | Current password wajib dan hash baru kompatibel dengan login legacy. |
+| Application settings | Write verified on isolated MySQL | Timezone dan field teks aktif dari settings untuk bahasa situs. Visual Settings, email, dan konfigurasi HTML belum dimigrasikan. |
+| Create WO dan Scheduled | Blocked by schema | `published_at` pada posts dan posts_logs. Scheduled juga membutuhkan `intervale`. |
+| Reports In dan Reports Out | Blocked by schema | `posts.subcategory_id` absen dari sumber otoritatif dan eworeb. |
+| Edit gallery dan ordered list | Blocked by schema | Tabel relasi item CI3 tidak tersedia pada schema aktif. |
+| Edit metadata audio dan video | Not yet migrated | Source CI3 memiliki view. Jalur lokal memakai post_type yang seluruhnya post. Detail audio baru sebatas lampiran. |
+| Knowledge Center dan editor | Fully working | JSON existing. Publikasi, CSRF, akses publik dan navigasi lulus di fixture. |
+
+Operasi tulis di atas hanya diuji pada MySQL terisolasi. Sakelar tulis pada salinan eworeb TCP 3310 tetap nonaktif.
+
+## Bukti dashboard tunggal dan alur WO sebelumnya, 19 November 2026 WIB
 
 Status ini menggantikan hasil historis di bawah. Salinan eworeb port 3310 digunakan untuk regresi read-only.
 

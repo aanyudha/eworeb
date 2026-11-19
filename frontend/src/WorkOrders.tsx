@@ -17,6 +17,7 @@ type Order = {
   user_id: number | null
   created_at: string
   edited_at: string | null
+  is_scheduled?: string | number | null
   intervale?: string | number | null
   published_at?: string | null
 }
@@ -44,7 +45,13 @@ function reportCells(row: Order): string[] {
 }
 
 
-type OrderPage = { items: Order[]; page: number; pageSize: number; total: number }
+type OrderPage = {
+  items: Order[]
+  page: number
+  pageSize: number
+  total: number
+  publish_csrf?: { header: string; hash: string }
+}
 const statusNames: Record<number, string> = { 1: 'New', 2: 'Progress', 3: 'Waiting', 4: 'Closed', 5: 'Pending' }
 
 export default function WorkOrders({ endpoint, direction, role, report = false }: { endpoint: string; direction: Direction; role: number; report?: boolean }) {
@@ -52,6 +59,8 @@ export default function WorkOrders({ endpoint, direction, role, report = false }
   const search = params.toString()
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
+  const [publishing, setPublishing] = useState<number | null>(null)
+  const [publishError, setPublishError] = useState('')
   const title = direction === 'scheduled' ? 'Scheduled Work Orders' : direction === 'drafts' ? 'Draft Work Orders' : report
     ? (direction === 'incoming' ? 'Reports In' : 'Reports Out')
     : (direction === 'incoming' ? 'Incoming Work Orders' : 'Outgoing Work Orders')
@@ -79,6 +88,29 @@ export default function WorkOrders({ endpoint, direction, role, report = false }
     setParams(next)
   }
 
+  async function publishDraft(id: number) {
+    const csrf = result?.publish_csrf
+    if (!csrf || !window.confirm('Publish Work Order #' + id + '?')) return
+    setPublishing(id)
+    setPublishError('')
+    try {
+      const response = await fetch(endpoint + '/drafts/' + id + '/publish', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', [csrf.header]: csrf.hash },
+      })
+      if (!response.ok) {
+        const problem = await response.json().catch(() => ({}))
+        throw new Error(problem.error || 'Could not publish the draft.')
+      }
+    } catch (error) {
+      setPublishError(error instanceof Error ? error.message : 'Could not publish the draft.')
+    } finally {
+      await query.refetch()
+      setPublishing(null)
+    }
+  }
+
   async function download(format: 'pdf' | 'xlsx') {
     if (!result?.items.length) return
     setExporting(true)
@@ -100,6 +132,7 @@ export default function WorkOrders({ endpoint, direction, role, report = false }
       </>}
     </PageHeader>
     {exportError && <ErrorState message={exportError} />}
+    {publishError && <ErrorState message={publishError} />}
 
     <section className="panel">
       <form key={direction + search} className="filter-panel" onSubmit={event => {
@@ -152,6 +185,7 @@ export default function WorkOrders({ endpoint, direction, role, report = false }
               <th scope="col">Assigned role</th><th scope="col">Author</th>
                             <th scope="col">Created</th><th scope="col">Replied</th>
               {direction === 'scheduled' && <><th scope="col">Interval</th><th scope="col">Next publication</th></>}
+              {result.publish_csrf && <th scope="col">Actions</th>}
             </tr></thead>
             <tbody>{result.items.map(order => <tr key={order.id}>
               <td>{order.id}</td><td>{direction === 'incoming' || direction === 'outgoing'
@@ -160,6 +194,9 @@ export default function WorkOrders({ endpoint, direction, role, report = false }
               <td>{order.category_id === null ? '' : statusNames[order.category_id] ?? order.category_id}</td><td>{order.corp_id}</td><td>{order.dept_id}</td>
               <td>{order.role_id}</td><td>{order.user_id}</td>              <td>{order.created_at}</td><td>{order.edited_at}</td>
               {direction === 'scheduled' && <><td>{order.intervale}</td><td>{order.published_at}</td></>}
+              {result.publish_csrf && <td>{String(order.is_scheduled) === '0' &&
+                <button type="button" className="secondary" disabled={publishing !== null}
+                  onClick={() => void publishDraft(order.id)}>{publishing === order.id ? 'Publishing…' : 'Publish'}</button>}</td>}
             </tr>)}</tbody>
           </table>}
         </div>

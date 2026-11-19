@@ -1,13 +1,35 @@
+import { useState } from 'react'
+import type { FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { ErrorState, LoadingState, PageHeader } from './components'
 
 type DirectoryPage = {
-  items: Record<string, string | number | null>[]
+  items: (Record<string, string | number | boolean | null> & { editable?: boolean })[]
+  editing?: boolean
+  canCreate?: boolean
   page: number
   pageSize: number
   total: number
 }
+
+type EditForm = {
+  fields: Record<string, string | number | null>
+  checks?: string[]
+  choices?: Record<string, {value: string | number; label: string}[]>
+  csrf: { header: string; hash: string }
+}
+
+const editLabels: Record<string, string> = {
+  name: 'Name', order: 'Order', corp_code: 'Corporation code', name_slug: 'Slug',
+  lang_id: 'Language ID', color: 'Color', visibility: 'Visibility', parent_id: 'Parent ID', corp_id: 'Corporation ID',
+  admin_panel: 'Admin panel', add_post: 'Add post', manage_all_posts: 'Manage all posts',
+  navigation: 'Navigation', categories: 'Categories', users: 'Users', settings: 'Settings',
+  first_name: 'First name', last_name: 'Last name', email: 'Email', password: 'Initial password',
+  dept_id: 'Department ID', role_id: 'Role', status: 'Account status',
+}
+const numericFields = ['order', 'lang_id', 'visibility', 'parent_id', 'corp_id', 'dept_id']
+const relationFields = ['lang_id', 'parent_id', 'corp_id']
 
 const fields = {
   id: 'ID', name: 'Name', first_name: 'First name', last_name: 'Last name',
@@ -33,6 +55,57 @@ export default function AdminDirectory({ endpoint, title }: { endpoint: string; 
       return response.json()
     },
   })
+  const [editing, setEditing] = useState<{ path: string; existing: boolean } | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const editor = useQuery<EditForm>({
+    queryKey: ['directory-editor', endpoint, editing?.path],
+    enabled: editing !== null,
+    retry: false,
+    staleTime: 0,
+    queryFn: async ({ signal }) => {
+      const response = await fetch(endpoint + '/' + editing?.path,
+        { signal, credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      if (!response.ok) {
+        const problem = await response.json().catch(() => ({}))
+        throw new Error(problem.error || 'Could not open the editor.')
+      }
+      return response.json()
+    },
+  })
+  function openEditor(path: string, existing: boolean) {
+    setSaveError('')
+    setEditing({ path, existing })
+  }
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!editing || !editor.data) return
+    const form = new FormData(event.currentTarget)
+    const body = new URLSearchParams()
+    for (const [name, value] of form) if (typeof value === 'string') body.set(name, value)
+    setSaving(true)
+    setSaveError('')
+    try {
+      const csrf = (await editor.refetch({ throwOnError: true })).data?.csrf
+      if (!csrf) throw new Error('Could not refresh the form session.')
+      const response = await fetch(endpoint + '/' + editing.path, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', [csrf.header]: csrf.hash },
+        body,
+      })
+      if (!response.ok) {
+        const problem = await response.json().catch(() => ({}))
+        throw new Error(problem.error || 'Could not save the record.')
+      }
+      setEditing(null)
+      await request.refetch()
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Could not save the record.')
+    } finally {
+      setSaving(false)
+    }
+  }
   const result = request.data
   const page = result?.page ?? 1
   const pageCount = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1
@@ -44,7 +117,37 @@ export default function AdminDirectory({ endpoint, title }: { endpoint: string; 
   }
 
   return <>
-    <PageHeader title={title} />
+    <PageHeader title={title}>
+      {result?.canCreate && <button type="button" className="secondary" disabled={saving}
+        onClick={() => openEditor('new', false)}>Add record</button>}
+    </PageHeader>
+    {editing && <section className="panel" aria-label="Master data editor">
+      <header className="panel-head"><h2>{editing.existing ? 'Edit record' : 'Add record'}</h2>
+        <button type="button" className="secondary" disabled={saving} onClick={() => setEditing(null)}>Cancel</button>
+      </header>
+      {editor.isFetching && !editor.data && <LoadingState />}
+      {editor.error && <ErrorState message={editor.error.message} />}
+      {saveError && <ErrorState message={saveError} />}
+      {editor.data && <form className="filter-panel" key={editing.path} onSubmit={event => void save(event)}>
+        {Object.entries(editor.data.fields).map(([name, value]) => <label key={name}>{editLabels[name]}
+          {name === 'status' ? <select name={name} defaultValue={value ?? ''} required>
+            <option value="1">Active</option><option value="0">Inactive</option>
+          </select> : editor.data?.choices?.[name] ? <select name={name} defaultValue={value ?? ''} required>
+            <option value="">Select</option>
+            {editor.data.choices[name].map(option => <option value={option.value} key={option.value}>{option.label}</option>)}
+          </select> : editor.data?.checks?.includes(name) ? <>
+            <input name={name} type="hidden" value="0" />
+            <input name={name} type="checkbox" value="1" defaultChecked={Number(value) === 1} />
+          </> : <input name={name} defaultValue={value ?? ''} required={name !== 'name_slug'}
+            type={numericFields.includes(name) ? 'number' : name === 'password' || name === 'email' ? name : 'text'}
+            autoComplete={name === 'password' ? 'new-password' : undefined}
+            min={['order', 'visibility'].includes(name) ? 0 : 1} max={name === 'visibility' ? 2 : undefined}
+            maxLength={name === 'password' ? 50 : ['corp_code', 'first_name', 'last_name'].includes(name) ? 100 : 200}
+            readOnly={editing.existing && relationFields.includes(name)} />}
+        </label>)}
+        <button type="submit" className="secondary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+      </form>}
+    </section>}
     <form className="filter-panel" key={endpoint + search} onSubmit={event => {
       event.preventDefault()
       const value = String(new FormData(event.currentTarget).get('q') ?? '').trim()
@@ -58,9 +161,11 @@ export default function AdminDirectory({ endpoint, title }: { endpoint: string; 
       action={<button type="button" className="secondary" onClick={() => void request.refetch()}>Retry</button>} />}
     {result && <section className="panel">
       {result.items.length ? <div className="table-wrap"><table>
-        <thead><tr>{activeFields.map(([key, label]) => <th scope="col" key={key}>{label}</th>)}</tr></thead>
-        <tbody>{result.items.map(item => <tr key={item.id}>
+        <thead><tr>{activeFields.map(([key, label]) => <th scope="col" key={key}>{label}</th>)}{result.editing && <th scope="col">Actions</th>}</tr></thead>
+        <tbody>{result.items.map(item => <tr key={String(item.id)}>
           {activeFields.map(([key]) => <td key={key}>{item[key]}</td>)}
+          {result.editing && <td>{item.editable && <button type="button" className="secondary" disabled={saving}
+            onClick={() => openEditor(item.id + '/edit', true)}>Edit</button>}</td>}
         </tr>)}</tbody>
       </table></div> : <p className="empty">No records found.</p>}
       <nav className="panel-head" aria-label={title + ' pages'}>

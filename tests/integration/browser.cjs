@@ -164,6 +164,27 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
             await evaluate("const form=document.querySelector('form:has([name=summary_edit])');form.elements.category_id.value='3';form.elements.assign_to.selectedIndex=1;form.elements.summary_edit.value='Verified browser reply';form.requestSubmit();");
             await until(()=>evaluate("document.body.innerText.includes('Reply saved.') && document.body.innerText.includes('Verified browser reply')"));
             console.log('Chrome: real Reply form saves and refreshes history on isolated MySQL');
+            await send('Page.navigate',{url:origin+'/workspace/directory/corporations'});
+            await until(()=>evaluate("[...document.querySelectorAll('button')].some(button=>button.textContent==='Add record')"));
+            await evaluate("[...document.querySelectorAll('button')].find(button=>button.textContent==='Add record').click()");
+            await until(()=>evaluate("document.querySelector('form [name=corp_code]')!==null"));
+            await evaluate("const form=document.querySelector('form:has([name=corp_code])');form.elements.name.value='Browser fixture corporation';form.elements.corp_code.value='BROWSER';form.requestSubmit()");
+            await until(()=>evaluate("document.querySelector('tbody')?.innerText.includes('Browser fixture corporation')"));
+            await send('Page.reload');
+            await until(()=>evaluate("document.querySelector('tbody')?.innerText.includes('Browser fixture corporation')"));
+            console.log('Chrome: corporation form saves to isolated MySQL and persists after a direct refresh');
+            await send('Page.navigate',{url:origin+'/workspace/account/profile'});
+            await until(()=>evaluate("document.querySelector('h1')?.innerText==='My profile' && document.querySelector('dl')?.innerText.includes('admin@example.test')"));
+            await send('Page.navigate',{url:origin+'/workspace/settings/application'});
+            await until(()=>evaluate("document.querySelector('h1')?.innerText==='Application settings' && document.querySelector('[name=application_name]')!==null"));
+            await send('Emulation.setDeviceMetricsOverride',{width:390,height:850,deviceScaleFactor:1,mobile:true});
+            await until(()=>evaluate("document.documentElement.clientWidth===390 && document.documentElement.scrollWidth<=390"));
+            await evaluate("const form=document.querySelector('form:has([name=application_name])');form.elements.application_name.value='Browser fixture settings';form.requestSubmit()");
+            await until(()=>evaluate("document.querySelector('[role=status]')?.textContent==='Settings saved.'"));
+            await send('Page.reload');
+            await until(()=>evaluate("document.querySelector('[name=application_name]')?.value==='Browser fixture settings'"));
+            await send('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});
+            console.log('Chrome: self profile and mobile application settings save and refresh PASS');
         }
 
         await evaluate("document.querySelector('summary[aria-label=\"Profile menu\"]').click(); [...document.querySelectorAll('.popover button')].find(b=>b.textContent.includes('Sign out')).click()");
@@ -199,6 +220,21 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
         }
         assert.deepEqual(errors,[]);
         console.log('Chrome: guest homepage, search, category filtering, article detail, safe text, history, refresh, and three viewports passed');
+        if (JSON.parse(process.env.EWO_HTTP_MYSQL_FIXTURE ?? 'null')?.replies) {
+            await send('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});
+            await send('Page.navigate',{url:origin+'/admin/login'});
+            await until(()=>evaluate("document.querySelector('h1')?.innerText==='Login'"));
+            await evaluate("document.querySelector('#email').value='employee@example.test';document.querySelector('#password').value='fixture-password';document.querySelector('button[type=submit]').click()");
+            await until(()=>evaluate("location.pathname==='/workspace' && document.querySelector('h1')?.innerText==='Dashboard'"));
+            assert.equal(await evaluate("Boolean(document.querySelector('nav a[href$=\"/directory/categories\"]'))"),false);
+            assert.equal(await evaluate("Boolean(document.querySelector('nav a[href$=\"/settings/application\"]'))"),false);
+            await send('Page.navigate',{url:origin+'/workspace/directory/categories'});
+            await until(()=>evaluate("document.body.innerText.includes('This workspace page does not exist.')"));
+            await send('Page.reload');
+            await until(()=>evaluate("document.body.innerText.includes('This workspace page does not exist.')"));
+            assert.deepEqual(errors,[]);
+            console.log('Chrome: unprivileged role has neither protected links nor access by direct refresh PASS');
+        }
     } finally {
         if(socket?.readyState===WebSocket.OPEN) {
             await Promise.race([send('Browser.close'),sleep(1000)]).catch(()=>{});

@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import type { FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { ErrorState, LoadingState, PageHeader } from './components'
@@ -56,17 +58,49 @@ export default function WorkOrderDetail({ endpoint, direction, replyEnabled = fa
   const backSearch = typeof location.state?.listSearch === 'string' ? location.state.listSearch : ''
   const item = data?.item
   const history = data?.history
-  const attachments = useQuery<{ items: { kind: string; id: number; label: string; download: string | null }[] }>({
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+  const attachmentUrl = endpoint + '/' + direction + '/' + encodeURIComponent(id ?? '') + '/attachments'
+  const attachments = useQuery<{
+    items: { kind: string; id: number; label: string; download: string | null }[]
+    upload?: { kind: 'image' | 'audio'; header: string; hash: string }
+  }>({
     queryKey: ['work-order-attachments', endpoint, direction, id],
     enabled: Boolean(item),
     retry: false,
     queryFn: async ({ signal }) => {
-      const response = await fetch(endpoint + '/' + direction + '/' + encodeURIComponent(id ?? '') + '/attachments',
-        { credentials: 'same-origin', signal })
+      const response = await fetch(attachmentUrl, { credentials: 'same-origin', signal })
       if (!response.ok) throw new Error('Could not load attachments.')
       return response.json()
     },
   })
+
+  const upload = attachments.data?.upload
+  async function uploadAttachment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!upload) return
+    const form = event.currentTarget
+    setUploading(true)
+    setUploadError('')
+    try {
+      const response = await fetch(attachmentUrl + '/' + upload.kind, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', [upload.header]: upload.hash },
+        body: new FormData(form),
+      })
+      if (!response.ok) {
+        const problem = await response.json().catch(() => ({}))
+        throw new Error(problem.error || 'Could not upload the attachment.')
+      }
+      form.reset()
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Could not upload the attachment.')
+    } finally {
+      await attachments.refetch()
+      setUploading(false)
+    }
+  }
 
   return <>
     <PageHeader title={'Work Order #' + id}>
@@ -94,6 +128,19 @@ export default function WorkOrderDetail({ endpoint, direction, replyEnabled = fa
         <header className="panel-head"><h2>Attachments</h2></header>
         {attachments.isPending && <LoadingState />}
         {attachments.error && <ErrorState message={attachments.error.message} />}
+        {uploadError && <ErrorState message={uploadError} />}
+        {upload && <form className="filter-panel" onSubmit={event => void uploadAttachment(event)}>
+          <label>{upload.kind === 'audio' ? 'Audio (MP3 or WAV, up to 20 MB)' : 'Image (GIF, JPEG or PNG, up to 5 MB)'}
+            <input type="file" name="attachment" required
+              accept={upload.kind === 'audio' ? '.mp3,.wav' : '.gif,.jpg,.jpeg,.png'} />
+          </label>
+          {upload.kind === 'audio' && <>
+            <label>Audio title<input name="audio_name" maxLength={150} required /></label>
+            <label>Artist<input name="musician" maxLength={150} /></label>
+            <label><input type="checkbox" name="download_button" value="1" /> Allow download</label>
+          </>}
+          <button type="submit" className="secondary" disabled={uploading}>{uploading ? 'Uploading…' : 'Upload'}</button>
+        </form>}
         {attachments.data && (attachments.data.items.length ? <ul>
           {attachments.data.items.map(file => <li key={file.kind + ':' + file.id}>
             {file.download ? <a href={file.download}>{file.label}</a> : <span>{file.label} (unavailable)</span>}

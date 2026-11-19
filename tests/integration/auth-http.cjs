@@ -44,7 +44,10 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const sessionPath=path.join(runtime,'sessions');
   fs.mkdirSync(sessionPath);
   const media = path.join(runtime,'wo-media');
+  const uploads = path.join(runtime,'wo-uploads');
   if (mysql?.replies) {
+    fs.mkdirSync(path.join(uploads,'images','eworeb'),{recursive:true});
+    fs.mkdirSync(path.join(uploads,'audios','eworeb'),{recursive:true});
     fs.mkdirSync(path.join(media,'images'),{recursive:true});
     fs.writeFileSync(path.join(media,'images','fixture.png'), Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFcQAAAAASUVORK5CYII=', 'base64'));
@@ -52,6 +55,8 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   }
   const fixtureEnv=[
     'CI_ENVIRONMENT = production', 'app.baseURL = '+origin+'/', 'ewo.workOrderWrites = '+Boolean(mysql?.replies), 'ewo.workOrderMediaRoot = '+(mysql?.replies ? media.replaceAll('\\','/') : ''),
+    'ewo.workOrderUploadRoot = '+(mysql?.replies ? uploads.replaceAll('\\','/') : ''),
+    'ewo.masterDataWrites = '+Boolean(mysql?.replies), 'ewo.accountWrites = '+Boolean(mysql?.replies),
     ...connection, 'session.savePath = "'+sessionPath+'"',
     'ewo.sessionKey = '+require('node:crypto').randomBytes(32).toString('hex'), 'session.cookieName = '+sessionName,
     'knowledgebase.directory = "'+path.join(runtime,'kb')+'"',
@@ -61,13 +66,13 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const prepend=path.join(runtime,'load-fixture.php');
   fs.writeFileSync(prepend, '<?php require '+JSON.stringify(dotenv)+'; (new CodeIgniter\\Config\\DotEnv(__DIR__))->load();');
   fs.writeFileSync(path.join(runtime,'php.ini'), [
-    'extension_dir="'+ext+'"','extension=intl','extension=mbstring','extension=sqlite3','extension=fileinfo', ...(mysql ? ['extension=mysqli'] : []),
+    'extension_dir="'+ext+'"','extension=intl','extension=mbstring','extension=sqlite3','extension=fileinfo','upload_max_filesize=20M','post_max_size=22M', ...(mysql ? ['extension=mysqli'] : []),
     'auto_prepend_file="'+prepend+'"',
   ].join('\n'));
   const env={...process.env,PHPRC:runtime,PHP_INI_SCAN_DIR:''};
   delete env.EWO_REPLY_FIXTURE_ADMIN;
   for (const key of Object.keys(env)) {
-    if (/^(?:CI_ENVIRONMENT|app[._]baseURL|database[._]ewo[._]|ewo[._](?:sessionKey|workOrderWrites|workOrderMediaRoot)|session[._]cookieName|knowledgebase[._](?:directory|backend)|database[._]kb[._]|session[._]savePath)/i.test(key)) delete env[key];
+    if (/^(?:CI_ENVIRONMENT|app[._]baseURL|database[._]ewo[._]|ewo[._](?:sessionKey|workOrderWrites|workOrderMediaRoot|workOrderUploadRoot|masterDataWrites|accountWrites)|session[._]cookieName|knowledgebase[._](?:directory|backend)|database[._]kb[._]|session[._]savePath)/i.test(key)) delete env[key];
   }
   const diagnosis=execFileSync(php,['spark','ewo:diagnose'],{cwd:target,env:{...env,CI_ENVIRONMENT:'development'},encoding:'utf8'});
   assert.match(diagnosis,/database.ewo.database: set/);
@@ -88,7 +93,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     const headers=new Headers(options.headers);
     headers.set('Cookie',[...cookies].map(([k,v])=>k+'='+v).join('; '));
     if(options.json!==undefined)headers.set('Content-Type','application/json');
-    const body=options.json!==undefined?JSON.stringify(options.json):(params?new URLSearchParams(params):undefined);
+    const body=options.json!==undefined?JSON.stringify(options.json):(params instanceof FormData ? params : params ? new URLSearchParams(params) : undefined);
     const res=await fetch(origin+route,{headers,body,method:options.method??(params?'POST':'GET'),redirect:'manual'});
     for(const c of res.headers.getSetCookie()) {
       const [token]=c.split(';');
@@ -181,7 +186,10 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   assert.equal(audit('snapshot'),before,'fixture Work Order rows remain identical');
   if (process.env.EWO_TEST_BROWSER) await require('./browser.cjs')(process.env.EWO_TEST_BROWSER,runtime,origin);
   if (!mysql?.replies) assert.equal(audit('snapshot'),before,'fixture Work Order rows remain identical');
-  if (mysql?.replies) await require('./wo-reply-assertions.cjs')(request,login,location,audit);
+  if (mysql?.replies) {
+    await require('./wo-reply-assertions.cjs')(request,login,location,audit,path.join(uploads,'audios','eworeb'));
+    await require('./master-and-account-assertions.cjs')(request,login,location,audit);
+  }
   console.log('HTTP: guest, CSRF, login, invalid password, ban, permission, activity, logout PASS');
 })().catch(error=>{console.error(error);console.error(output);process.exitCode=1;}).finally(()=>{
   if(server?.pid && server.exitCode===null) {

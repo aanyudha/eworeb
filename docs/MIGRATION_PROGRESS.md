@@ -1,5 +1,25 @@
 # Progres migrasi EWO
 
+## Lampiran, Draft, Master Data dan pengelolaan akun, 19 November 2026 WIB
+
+- Detail Incoming menyediakan unggahan privat gambar tambahan dan audio sesuai jenis WO serta akses balasan. File disimpan sebelum commit relasi, memakai nama acak dan namespace terpisah dari arsip. Validasi mencakup ekstensi, MIME aktual, ukuran, batas dimensi gambar serta flag unduh audio. Kegagalan relasi audio dibuktikan membatalkan metadata dan meninggalkan jumlah file yang sama. Kegagalan setelah file dipindahkan dibersihkan setelah rollback yang dikonfirmasi. File dengan hasil commit yang tidak diketahui dipertahankan untuk rekonsiliasi.
+- Daftar Draft menerbitkan WO biasa dengan konfirmasi di React. Endpoint memakai scope daftar, izin add_post, CSRF dan pemeriksaan status pada UPDATE. Fixture memeriksa perubahan satu field, pengiriman ulang, corporation dan department yang berbeda. Jalur jadwal tetap diblokir.
+- Enam Master Data aktif memakai tabel legacy. Validasi parent dan corporation dilakukan sebelum penulisan. Status WO kategori 1–6 dan relasi record existing dilindungi. Admin mengelola penciptaan akun, nama, email dan status; staff yang diberi izin users tetap memiliki daftar scoped. Pengubahan izin terbatas pada tujuh flag yang ditulis CI3 dan mengecualikan role admin. Profil adalah baca-saja. Perubahan kata sandi memverifikasi hash lama dan transaksi perubahan pengaturan aktif mencakup rollback pada kegagalan timezone.
+- PHP 8.5.12 lint pada 15 file PHP dan PHPUnit 7 tes/32 assertion lulus. TypeScript, Vite, manifest, aset CSS/JS pada Apache serta akses guest lulus. Vite masih memberi peringatan ukuran chunk ekspor PDF/font. Chrome terisolasi memeriksa dashboard, form balasan, penyimpanan corporation, profil, penyimpanan settings pada viewport 390 px, direct URL/refresh dengan role tanpa izin, logout dan Knowledge Center. Suite MySQL standar menguji filter dan paginasi serta ekspor XLSX dan PDF A3 pada fixture yang memiliki kolom tambahan.
+- Uji baca pada TCP 3310 cocok dengan CI3 pada 12 skenario dashboard dan 24 skenario daftar. Probe juga membuktikan 55 detail scoped dan 10 penolakan lintas corporation. SHA-256 atas 19.812 posts dan 43.609 posts_logs sama sebelum dan sesudah. Tidak ada perubahan pada schema, akun, WO, konfigurasi .env, atau arsip CI3. Tiga sakelar tulis tetap default false pada salinan terpelihara.
+- Create, Scheduled, dan Reports masih menunggu data historis dan definisi schema yang terbukti. Gallery dan ordered list membutuhkan tabel relasi legacy. Edit metadata audio/video, email atau avatar profil, delegasi mutasi user non-admin, penggantian role akun, dan bagian lanjutan Settings belum diterapkan. Knowledge Center tetap memakai JSON. [Matriks parity](FEATURE_PARITY_MATRIX.md) dan [audit schema](LEGACY_DATABASE_ALIGNMENT.md) mencatat batas setiap fitur.
+
+### File tahap ini
+
+| Bagian | File |
+| --- | --- |
+| Route dan halaman | `app/Config/Routes.php`, `app/Controllers/WorkspaceController.php`, `app/Views/admin/workspace.php` |
+| Work Order | `app/Controllers/WorkOrderAttachmentController.php`, `app/Controllers/WorkOrderController.php`, `app/Models/WorkOrderAttachments.php`, `app/Models/WorkOrderList.php` |
+| Master, akun, role dan pengaturan | `app/Controllers/AdminDirectoryController.php`, `app/Controllers/AccountController.php`, `app/Controllers/ApplicationSettingsController.php`, `app/Models/AdminDirectory.php`, `app/Models/AuthRepository.php`, `app/Models/MasterData.php`, `app/Models/UserManagement.php` |
+| React | `frontend/src/main.tsx`, `WorkOrderDetail.tsx`, `WorkOrders.tsx`, `AdminDirectory.tsx`, `AccountPassword.tsx`, `WorkspaceSettings.tsx` |
+| Fixture dan browser | `tests/integration/auth-http.cjs`, `browser.cjs`, `mysql-fixture.php`, `wo-reply-assertions.cjs`, `master-and-account-assertions.cjs` |
+| Dokumen dan templat | `README.md`, `env`, `docs/MIGRATION_PROGRESS.md`, `docs/FEATURE_PARITY_MATRIX.md`, `docs/LEGACY_DATABASE_ALIGNMENT.md` |
+
 ## Workspace tunggal dan balasan WO, 19 November 2026 WIB
 
 - AuthController mengarahkan login sukses langsung ke Workspace. AdminController menjaga izin dan scope sebelum mengalihkan /admin. Navigasi React sudah tanpa tautan dashboard klasik. View klasik tetap disimpan. Chrome menguji guest, login, redirect, refresh, deep link, back/forward, logout, serta desktop, tablet dan mobile pada fixture. Apache aktif melayani bundel dan Knowledge Center pada jalur guest. Login ke salinan existing tidak diulang agar aktivitasnya tidak ditulis.

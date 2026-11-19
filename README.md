@@ -4,7 +4,7 @@
 
 Login POST sukses mengarah langsung ke Workspace React. Route /admin menjaga admin_panel dan batas role lalu mengarah ke Workspace. View klasik disimpan sebagai referensi regresi. Public Knowledge Center, login, dashboard API, CSRF, dan sesi tetap tersedia.
 
-Operasi tulis hanya aktif bila ewo.workOrderWrites=true pada instance yang disetujui. Salinan eworeb port 3310 dipertahankan baca-saja untuk pekerjaan ini. Mode --wo-replies memakai datadir sementara, port loopback berbeda, SHOW CREATE baca-saja terhadap definisi yang diperlukan, dan hanya input terkontrol. Jalankan dari Windows PowerShell setelah build aset:
+Penulisan Work Order hanya aktif bila ewo.workOrderWrites=true pada instance yang disetujui. Salinan eworeb port 3310 dipertahankan baca-saja untuk pekerjaan ini. Mode --wo-replies memakai datadir sementara, port loopback berbeda, SHOW CREATE baca-saja terhadap definisi yang diperlukan, dan hanya input terkontrol. Jalankan dari Windows PowerShell setelah build aset:
 
 ~~~powershell
 $env:EWO_TEST_SUBFOLDER = '1'
@@ -14,6 +14,22 @@ node tests/integration/mysql-workspace.cjs 'C:\xampp8512\php\php.exe' 'C:\Progra
 ~~~
 
 File media lama dapat dipasang sebagai ewo.workOrderMediaRoot di luar document root dengan subfolder images dan audios serta extension PHP fileinfo. Jangan mengarahkan folder unggahan legacy ke HTTP publik untuk mencoba fitur. Referensi yang file-nya belum tersedia tetap tampil tanpa tautan.
+
+## Modul legacy di Workspace
+
+Draft biasa dapat dipublikasikan dari daftar oleh pengguna yang memiliki akses ke Draft tersebut. Detail Incoming mendukung lampiran tambahan sesuai tipe WO dan izin balasan. Daftar Master Data menyediakan tambah dan edit dengan validasi relasi. Administrator dapat menambah dan mengedit Users atau Administrators, mengubah status akun, dan menyimpan izin role yang benar-benar ditulis CI3. My profile menampilkan data akun sendiri. Change password meminta kata sandi saat ini.
+
+Konfigurasi lokal mengikuti tiga sakelar:
+
+| Pengaturan | Operasi |
+| --- | --- |
+| `ewo.workOrderWrites` | Balasan, publikasi Draft biasa dan lampiran pada Incoming yang memenuhi syarat |
+| `ewo.masterDataWrites` | Tambah dan edit enam menu Master Data |
+| `ewo.accountWrites` | Kelola akun dan izin, ubah kata sandi sendiri serta pengaturan aplikasi yang didukung |
+
+Semua sakelar default `false`. Uji mutasi di instance MySQL terisolasi. Untuk lampiran baru, buat `images/eworeb` dan `audios/eworeb` di dalam `ewo.workOrderUploadRoot` privat yang bisa ditulis PHP, misalnya di bawah direktori `writable` pada instance yang diizinkan. Storage tersebut harus terpisah dari mount arsip legacy dan berada di luar document root. Batasi akses direktori ke akun runtime dan siapkan backup bersama database. Atur `upload_max_filesize` hingga 20 MB dan `post_max_size` lebih besar jika diperlukan. Jika koneksi terputus saat commit, cocokkan referensi dengan file sebelum membersihkan direktori privat.
+
+Status dan batas setiap modul tersedia di [matriks parity](docs/FEATURE_PARITY_MATRIX.md). Rincian tiga kolom penghambat tersedia di [audit schema legacy](docs/LEGACY_DATABASE_ALIGNMENT.md).
 
 ## Build frontend dan shared hosting
 

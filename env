@@ -76,3 +76,8 @@
 # ewo.workOrderWrites = false
 # Private media directory containing images/ and audios/. Leave blank if unavailable.
 # ewo.workOrderMediaRoot =
+# Separate private write root, with images/eworeb and audios/eworeb owned by the PHP runtime.
+# ewo.workOrderUploadRoot =
+# Independently gate master data and account, role, password and application settings writes.
+# ewo.masterDataWrites = false
+# ewo.accountWrites = false
