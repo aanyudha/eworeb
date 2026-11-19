@@ -10,15 +10,22 @@ if (!php) throw Error('Specify the absolute path to a PHP executable');
 const ext=path.join(path.dirname(php),'ext');
 const runtime=fs.mkdtempSync(path.join(os.tmpdir(),'eworeb-http-test-'));
 const db=path.join(runtime,'auth.sqlite');
+const mysql=JSON.parse(process.env.EWO_HTTP_MYSQL_FIXTURE ?? 'null');
+const mysqlFixture=path.join(__dirname,'mysql-fixture.php');
 const sessionName='eworeb_fixture_'+process.pid;
 const flags=['-n','-d','extension_dir='+ext,'-d','extension=intl','-d','extension=mbstring','-d','extension=sqlite3'];
+if (mysql) flags.push('-d','extension=mysqli');
 const fixture=path.join(__dirname,'auth-http-fixture.php');
 const phpRun=(args)=>execFileSync(php,[...flags,...args],{cwd:target,encoding:'utf8'});
 let server, output='';
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 (async()=>{
   phpRun([fixture,db]);
-  const before=phpRun([fixture,db,'snapshot']);
+  if (mysql) {
+    phpRun([mysqlFixture,db,'snapshot']);
+  }
+  const audit=(action)=>phpRun([mysql?mysqlFixture:fixture,db,action]);
+  const before=audit('snapshot');
   assert.match(before,/^[a-f0-9]{64}$/);
   const probe=net.createServer();
   await new Promise((resolve,reject)=>probe.once('error',reject).listen(0,'127.0.0.1',resolve));
@@ -26,10 +33,19 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   await new Promise(resolve=>probe.close(resolve));
   const prefix=process.env.EWO_TEST_SUBFOLDER==='1'?'/eworeb':'';
   const origin='http://'+addr+prefix;
-  const fixtureEnv=[
-    'CI_ENVIRONMENT = production', 'app.baseURL = '+origin+'/',
+  const connection = mysql ? [
+    'database.ewo.hostname = 127.0.0.1', 'database.ewo.database = ewo_fixture',
+    'database.ewo.username = ewo_fixture', 'database.ewo.password = '+mysql.password,
+    'database.ewo.port = '+mysql.port, 'database.ewo.DBDriver = MySQLi',
+  ] : [
     'database.ewo.database = "'+db+'"',
     'database.ewo.username = fixture', 'database.ewo.DBDriver = SQLite3',
+  ];
+  const sessionPath=path.join(runtime,'sessions');
+  fs.mkdirSync(sessionPath);
+  const fixtureEnv=[
+    'CI_ENVIRONMENT = production', 'app.baseURL = '+origin+'/',
+    ...connection, 'session.savePath = "'+sessionPath+'"',
     'ewo.sessionKey = '+require('node:crypto').randomBytes(32).toString('hex'), 'session.cookieName = '+sessionName,
     'knowledgebase.directory = "'+path.join(runtime,'kb')+'"',
   ].join('\n');
@@ -38,16 +54,16 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const prepend=path.join(runtime,'load-fixture.php');
   fs.writeFileSync(prepend, '<?php require '+JSON.stringify(dotenv)+'; (new CodeIgniter\\Config\\DotEnv(__DIR__))->load();');
   fs.writeFileSync(path.join(runtime,'php.ini'), [
-    'extension_dir="'+ext+'"','extension=intl','extension=mbstring','extension=sqlite3',
+    'extension_dir="'+ext+'"','extension=intl','extension=mbstring','extension=sqlite3', ...(mysql ? ['extension=mysqli'] : []),
     'auto_prepend_file="'+prepend+'"',
   ].join('\n'));
   const env={...process.env,PHPRC:runtime,PHP_INI_SCAN_DIR:''};
   for (const key of Object.keys(env)) {
-    if (/^(?:CI_ENVIRONMENT|app[._]baseURL|database[._]ewo[._]|ewo[._]sessionKey|session[._]cookieName|knowledgebase[._]directory)/i.test(key)) delete env[key];
+    if (/^(?:CI_ENVIRONMENT|app[._]baseURL|database[._]ewo[._]|ewo[._]sessionKey|session[._]cookieName|knowledgebase[._](?:directory|backend)|database[._]kb[._]|session[._]savePath)/i.test(key)) delete env[key];
   }
   const diagnosis=execFileSync(php,['spark','ewo:diagnose'],{cwd:target,env:{...env,CI_ENVIRONMENT:'development'},encoding:'utf8'});
   assert.match(diagnosis,/database.ewo.database: set/);
-  assert.match(diagnosis,/Read-only SQLite connection: OK/);
+  assert.match(diagnosis,mysql ? /Read-only MySQL connection: OK/ : /Read-only SQLite connection: OK/);
   assert.match(diagnosis,/users_logs: compatible/);
   assert.doesNotMatch(diagnosis,/[0-9a-f]{64}/i);
   const args=prefix?['-S',addr,'-t','public',path.join(__dirname,'subfolder-router.php')]
@@ -112,11 +128,11 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const dashboard=await request('/admin');
   assert.equal(dashboard.status,200);
   assert.match(await dashboard.text(),/Incoming Work Order/);
-  const activity=phpRun([fixture,db,'activity-count']);
+  const activity=audit('activity-count');
   const api=await request('/api/v1/dashboard');
   assert.equal(api.status,200);
   assert.match(api.headers.get('cache-control'),/no-store/);
-  assert.equal(phpRun([fixture,db,'activity-count']),activity,'API must not write audit rows');
+  assert.equal(audit('activity-count'),activity,'API must not write audit rows');
   const rootPage=await request('/workspace/incoming');
   assert.equal(rootPage.status,200);
   const entry=(await rootPage.text()).match(/<script type="module" src="([^"]+)"/);
@@ -129,7 +145,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   }
   assert.equal(location(await request('/logout')),'/admin/login');
   assert.equal(location(await request('/admin')),'/admin/login');
-  console.log(phpRun([fixture,db,'check']));
+  console.log(audit('check'));
   const scoped=await login('other@example.test','fixture-password');
   assert.equal(location(scoped),'/admin');
   assert.equal((await request('/admin')).status,403);
@@ -161,8 +177,9 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     }
     console.log('Dashboard parity: '+scenarios.length+' CI3 scenarios on identical synthetic rows');
   }
+  if (mysql) await require('./work-orders-assertions.cjs')(request,login,location);
   if (process.env.EWO_TEST_BROWSER) await require('./browser.cjs')(process.env.EWO_TEST_BROWSER,runtime,origin);
-  assert.equal(phpRun([fixture,db,'snapshot']),before,'fixture Work Order rows remain identical');
+  assert.equal(audit('snapshot'),before,'fixture Work Order rows remain identical');
   console.log('HTTP: guest, CSRF, login, invalid password, ban, permission, activity, logout PASS');
 })().catch(error=>{console.error(error);console.error(output);process.exitCode=1;}).finally(()=>{
   if(server?.pid && server.exitCode===null) {

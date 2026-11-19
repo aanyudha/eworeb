@@ -43,7 +43,7 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
                 const call=pending.get(msg.id);pending.delete(msg.id);
                 if(msg.error)call.reject(Error(msg.error.message));else call.resolve(msg.result);
             }
-            if (msg.method==='Runtime.exceptionThrown') errors.push(msg.params.exceptionDetails.text);
+            if (msg.method==='Runtime.exceptionThrown') errors.push(msg.params.exceptionDetails.exception?.description ?? msg.params.exceptionDetails.text);
             if (msg.method==='Network.responseReceived' && msg.params.response.url.startsWith(origin)
                 && msg.params.response.status>=400 && msg.params.type!=='Document') errors.push(msg.params.response.url);
             if (msg.method==='Log.entryAdded' && msg.params.entry.level==='error') errors.push([msg.params.entry.text,msg.params.entry.url]);
@@ -103,7 +103,54 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
             await evaluate("document.querySelector('.scrim').click()");
         }
         await send('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});
-        await evaluate("[...document.querySelectorAll('nav a')].find(a=>a.textContent==='Knowledge Base').click()");
+        if (process.env.EWO_HTTP_MYSQL_FIXTURE) {
+            await evaluate("document.querySelector('nav a[href*=\"/work-orders/incoming\"]').click()");
+            await until(()=>evaluate("document.querySelector('h1')?.innerText==='Incoming Work Orders' && document.querySelector('tbody')?.innerText.includes('Fixture WO')"));
+            await evaluate("[...document.querySelectorAll('nav[aria-label=\"Work order pages\"] button')].find(b=>b.textContent==='Next').click()");
+            await until(()=>evaluate("location.search.includes('page=2') && document.querySelector('tbody')?.innerText.includes('Fixture WO')"));
+            await send('Page.reload');
+            await until(()=>evaluate("document.readyState==='complete' && document.querySelector('tbody')?.innerText.includes('Fixture WO')"));
+            await send('Page.navigate',{url:origin+'/workspace/work-orders/outgoing?q=does-not-match'});
+            await until(()=>evaluate("document.querySelector('h1')?.innerText==='Outgoing Work Orders' && document.body.innerText.includes('No work orders match this page.')"));
+            console.log('Chrome: live Work Order list, next page, subfolder refresh, and empty search passed');
+            await evaluate("document.querySelector('nav a[href*=\"/work-orders/drafts\"]').click()");
+            await until(()=>evaluate("document.querySelector('h1')?.innerText==='Draft Work Orders' && document.querySelectorAll('tbody tr').length===1"));
+            await evaluate("document.querySelector('nav a[href*=\"/work-orders/scheduled\"]').click()");
+            await until(()=>evaluate("document.querySelector('h1')?.innerText==='Scheduled Work Orders' && document.querySelector('tbody')?.innerText.includes('2026-02-01')"));
+            console.log('Chrome: Drafts and Scheduled display fixture rows');
+
+            await evaluate("document.querySelector('nav a[href*=\"/directory/sublocations\"]').click()");
+            await until(()=>evaluate("document.querySelector('h1')?.innerText==='Sublocations' && document.querySelector('tbody')?.innerText.includes('Site One Room')"));
+            await send('Page.reload');
+            await until(()=>evaluate("document.readyState==='complete' && document.querySelector('tbody')?.innerText.includes('Site Two Room')"));
+            console.log('Chrome: admin directory navigation and refresh passed');
+            const downloadDirectory=path.join(runtime,'downloads');
+            await fs.mkdir(downloadDirectory);
+            await send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloadDirectory});
+            await evaluate("document.querySelector('nav a[href*=\"/reports/incoming\"]').click()");
+            await until(()=>evaluate("document.querySelector('h1')?.innerText==='Reports In' && document.querySelector('tbody')?.innerText.includes('Site One')"));
+            await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Excel').click()");
+            const xlsx=await until(()=>fs.readFile(path.join(downloadDirectory,'Reports-In.xlsx')));
+            const JSZip=require('../../frontend/node_modules/jszip');
+            const spreadsheet=await JSZip.loadAsync(xlsx);
+            const sheet=await spreadsheet.file('xl/worksheets/sheet1.xml').async('string');
+            assert.equal([...sheet.matchAll(/<row\b/g)].length,16);
+            assert.match(sheet,/<t xml:space="preserve">Work Order Title<\/t>/);
+            assert.match(sheet,/<t xml:space="preserve">Fixture WO<\/t>/);
+            assert.doesNotMatch(sheet,/<f>/);
+
+            await evaluate("document.querySelector('nav a[href*=\"/reports/outgoing\"]').click()");
+            await until(()=>evaluate("document.querySelector('h1')?.innerText==='Reports Out' && document.querySelector('tbody')?.innerText.includes('Site One')"));
+            await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='PDF').click()");
+            const pdf=await until(()=>fs.readFile(path.join(downloadDirectory,'Reports-Out.pdf')));
+            assert.equal(pdf.subarray(0,5).toString(),'%PDF-');
+            assert.match(pdf.toString('latin1'),/\/MediaBox \[0 0 1190\.\d+ 841\.\d+\]/);
+            console.log('Chrome: Reports In XLSX sheet, Reports Out A3 PDF, and same-origin report assets passed');
+
+        }
+
+        await until(()=>evaluate("document.querySelector('nav a[href*=\"/workspace/knowledge\"]') !== null"));
+        await evaluate("document.querySelector('nav a[href*=\"/workspace/knowledge\"]').click()");
         await until(()=>evaluate("document.querySelector('h1')?.innerText==='Knowledge Base' && document.querySelector('.knowledge-tabs')!==null"));
         await until(()=>evaluate("[...document.querySelectorAll('button')].some(b=>b.textContent.includes('New draft'))"));
         await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent.includes('New draft')).click()");

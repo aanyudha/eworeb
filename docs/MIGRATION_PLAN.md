@@ -325,3 +325,7 @@ Tahap selanjutnya tetap transaksi Work Order, Reports In/Out dengan `add_post`, 
 Public routes `/`, `/kb`, and `/kb/{slug}` use a separate React entry. The workspace and classic admin routes stay protected. Public content is file-backed, with validated public/published projection and related links resolved through the same visibility rule. Staff management lives in the current React workspace and uses the existing admin role and CI4 CSRF. Publish or withdraw only after explicit admin action.
 
 Use the CLI diagnostic to check effective configuration and local schema metadata before provisioning an isolated database. No automatic schema selection or data migration is part of this phase. [Knowledge Center](KNOWLEDGE_BASE.md) · [Database diagnostics](DATABASE_DIAGNOSTICS.md)
+
+## Gate penerimaan operasional
+
+Gunakan [matriks parity](FEATURE_PARITY_MATRIX.md) untuk urutan aktivasi modul. Bandingkan autentikasi, dashboard dan daftar WO pada [salinan legacy yang disetujui](LEGACY_DATABASE_ALIGNMENT.md). Kebijakan CI3 yang mengakses record hanya dengan ID harus memiliki batas corporation/department yang disetujui sebelum endpoint baru dibuka. Reports In dan Out memerlukan pembandingan hasil, pagination, kolom PDF/Excel, serta audit Jasper terpisah. Pertahankan [penyimpanan JSON Knowledge Center](KNOWLEDGE_BASE_MYSQL.md).

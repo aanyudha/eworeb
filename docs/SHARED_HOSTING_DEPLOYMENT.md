@@ -73,3 +73,9 @@ Buat ewo.sessionKey terpisah untuk environment hosting mengikuti [README](../REA
 4. Uji penyimpanan dan publikasi artikel hanya dengan katalog staging. Pastikan CSRF, cookie dan marker publikasi berfungsi. Gunakan console/network browser untuk memeriksa JS error, CORS, MIME dan 404 aset.
 
 Dokumen ini adalah panduan packaging dan verifikasi lokal. Target hosting tertentu baru dapat dinyatakan siap setelah document root, dependensi PHP, database, akses tulis dan smoke test staging di sana lulus.
+
+## Penerimaan modul
+
+Verifikasi [salinan database legacy yang disetujui](LEGACY_DATABASE_ALIGNMENT.md) sebelum menerima modul operasional. Pada staging, verifikasi Workspace /work-orders/incoming dan /work-orders/outgoing dengan pengguna berizin add_post dan akun dari corporation berbeda. Uji Reports In/Out dan unduh PDF A3 serta Excel dari halaman berisi data uji. Pertahankan chunk ekspor dan font hasil build di paket aset. Chunk dimuat saat ekspor. [PDFMake client-side](https://pdfmake.github.io/docs/0.3/getting-started/client-side/) · [JSZip generateAsync](https://stuk.github.io/jszip/documentation/api_jszip/generate_async.html)
+
+Matriks parity menandai menu yang belum dapat digunakan. Knowledge Center tetap memakai JSON di luar document root.

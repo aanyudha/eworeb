@@ -112,3 +112,7 @@ C:\xampp8512\php\php.exe spark ewo:diagnose
 ```
 
 See [database diagnostics](docs/DATABASE_DIAGNOSTICS.md) and the [Knowledge Center guide](docs/KNOWLEDGE_BASE.md).
+
+## Penerimaan database legacy
+
+Ikuti [audit dan prosedur penyelarasan database legacy](docs/LEGACY_DATABASE_ALIGNMENT.md) untuk menyiapkan tujuan pengembangan yang disetujui dan menerima modul dengan akun serta data Work Order existing. Lihat [matriks parity](docs/FEATURE_PARITY_MATRIX.md) untuk menu yang tersedia, batas akses dan pekerjaan tersisa.

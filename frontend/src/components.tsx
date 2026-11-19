@@ -18,14 +18,14 @@ export type DashboardData = {
 }
 const number = new Intl.NumberFormat()
 
-export function Sidebar({ sections, onNavigate }: { sections: { path: string; label: string }[]; onNavigate: () => void }) {
+export function Sidebar({ sections, onNavigate }: { sections: { path: string; label: string; preserveSearch?: boolean }[]; onNavigate: () => void }) {
   const { search } = useLocation()
   return <aside className="sidebar" id="workspace-navigation">
     <div className="brand"><span className="brand-mark"><Activity size={20} /></span><span>EWO <b>Reborn</b><small>Operations workspace</small></span></div>
     <p className="nav-caption">WORKSPACE</p>
     <nav aria-label="Workspace navigation">
       <NavLink to={{ pathname: "/", search }} end onClick={onNavigate}><LayoutDashboard size={17} />Dashboard</NavLink>
-      {sections.map(({ path, label }) => <NavLink key={path} to={{ pathname: path, search }} onClick={onNavigate}><Activity size={17} />{label}</NavLink>)}
+      {sections.map(({ path, label, preserveSearch = true }) => <NavLink key={path} to={{ pathname: path, search: preserveSearch ? search : undefined }} onClick={onNavigate}><Activity size={17} />{label}</NavLink>)}
     </nav>
   </aside>
 }
@@ -48,7 +48,7 @@ export function Topbar({ viewer, search, onSearch, toggle, expanded, onLogout, c
 }
 
 export function AppShell({ sections, viewer, search, onSearch, classic, onLogout, children }: {
-  sections: { path: string; label: string }[]; viewer?: DashboardData['viewer']; search: string;
+  sections: { path: string; label: string; preserveSearch?: boolean }[]; viewer?: DashboardData['viewer']; search: string;
   onSearch: (value: string) => void; classic: string; onLogout: () => void; children: ReactNode;
 }) {
   const [compact, setCompact] = useState(false)

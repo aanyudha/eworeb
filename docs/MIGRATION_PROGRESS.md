@@ -1,5 +1,16 @@
 # Progres migrasi EWO
 
+## Penyalinan legacy ke eworeb, 19 November 2026 WIB
+
+- Setelah izin eksplisit, 18 tabel dan 443.998 record asli disalin dari ewohotel_tentrem ke eworeb pada TCP 3310. Backup, metadata dan checksum seluruh tabel diverifikasi.
+- Diagnosis Spark serta pembacaan Dashboard, Incoming, Outgoing, Drafts dan direktori berhasil pada database pengembangan. Scheduled dan Reports masih membutuhkan kolom yang absen dari schema sumber. Login akun asli belum diuji. [Bukti per tabel](LEGACY_DATABASE_ALIGNMENT.md#hasil-salin-19-november-2026-wib)
+
+## Koreksi legacy-first, sebelum penyalinan
+
+- Konfigurasi CI3 menunjuk ewo di port default 3306. Akses metadata dengan konfigurasi itu ditolak 1045. ewohotel_tentrem di port 3310 menjadi kandidat pembanding, belum menjadi sumber otoritatif.
+- Probe read-only memakai data existing. Dashboard, Incoming, Outgoing, Drafts, dan direktori CI4 dapat membaca kandidat. Scheduled terhalang intervale/published_at, Reports terhalang subcategory_id. Lihat [audit dan prosedur salin](LEGACY_DATABASE_ALIGNMENT.md).
+- Opsi pembuatan tabel fixture KB dan adapter MySQL eksperimental dicabut. Knowledge Center tetap JSON. Hasil fixture terdahulu di bawah adalah historis. Tidak ada penulisan database, penggantian koneksi atau login pada schema existing.
+
 ## Integrasi database dan kesiapan shared hosting, 19 November 2026 WIB
 
 - Grup EWO dan session key efektif tersedia pada CLI. Apache melewati guard konfigurasi saat form kosong dengan CSRF valid diserahkan. Browser memakai URL dan aset same-origin di localhost/eworeb/.
@@ -163,3 +174,14 @@ Pengujian HTTP memakai file SQLite sintetis di temp, loopback dan cookie sesi fi
 - Sebelum menutup tahap B, putuskan kebijakan remember-me serta batas pergantian role/password, akses lintas corporation, dan penanganan redirect legacy. Sebelum tahap E, putuskan akses dan kompatibilitas Jasper serta maksud route reportsbyfinishdate.
 - Sumber CI3 tetap dibaca saja. Tidak ada dump operasional yang dijalankan, migration, seeder, koneksi produksi, commit, push, atau deployment.
 
+## Regresi MySQL dan daftar Work Order
+
+- spark ewo:diagnose --inventory di port 3310 dapat membaca metadata dan tetap keluar 1. Skema eworeb belum memiliki users.dept_id serta posts.corp_id, posts.dept_id dan posts.is_scheduled. Pemeriksaan kolom, indeks dan constraint dilakukan baca-saja pada dua skema existing.
+- MySQL Community Server 8.0.45 pada proses loopback terpisah dan data directory sementara menjalankan fixture sintetis. Login, password salah, banned user, sesi, CSRF, permission, logout, aktivitas, dan enam skenario dashboard terhadap CI3 lulus. Pengujian mengunci perubahan WO di luar scope dengan membandingkan hash 134 baris fixture.
+- Daftar Incoming dan Outgoing menampilkan baris WO dari CI4 API di React. Data dibatasi oleh role, corporation dan department seperti query daftar CI3. Drafts dan Scheduled memiliki daftar tersendiri. Aksi publish, cron dan mutasi WO belum tersedia. Lihat [matriks parity](FEATURE_PARITY_MATRIX.md) untuk status menu dan perbedaan.
+- Daftar Categories, Subcategories, Locations, Sublocations, Departments, Users, dan Administrators sudah membaca MySQL fixture dengan izin server-side. HTTP menguji hierarki, scope corporation, search dan allowlist respons.
+- Reports In/Out mempertahankan add_post dan memakai cakupan yang sama dengan daftar WO. Unduhan halaman aktif diverifikasi pada Chrome untuk tabel XLSX dan PDF A3 landscape. Image menampilkan ketersediaan tanpa menerbitkan path file. Jasper lama dipisahkan karena didapati konfigurasi internal dan kontrol akses lama yang tidak memadai.
+- Knowledge Base memiliki adapter MySQL yang memakai koneksi kb terpisah, transaksi, penyaringan published/public dan revisi optimistis. Backend lokal tetap JSON hingga cutover disetujui. Katalog default belum memiliki articles.json saat diperiksa.
+- Dengan izin khusus fixture sementara, dua CREATE TABLE KB dan pengujian API serta Chrome lulus pada MySQL 8.0.45 terisolasi. Uji mencakup duplikasi slug, konflik revisi, status publikasi, pencarian dan relasi privat. Pemeriksaan langsung mengonfirmasi status dan urutan relasi tersimpan. Mode MySQL tidak menulis articles.json di fixture. .env lokal dan server existing tetap memakai konfigurasi sebelumnya.
+- Pemeriksaan akhir lulus pada PHP 8.5.12 untuk 12 file PHP dan PHPUnit 7 tes dengan 32 assertion. npm ci, TypeScript dan Vite lulus. Chrome lulus pada MySQL 8.0.45 sintetis untuk login/logout, daftar WO, Drafts, Scheduled, navigasi direktori, isi worksheet XLSX dan PDF A3, serta Knowledge Center dengan backend JSON fixture. Vite memperingatkan ukuran chunk PDF dan font yang dimuat saat ekspor.
+- Apache aktif lulus pada GET portal KB, aset hasil build same-origin, API guest 401 dan redirect workspace ke login. Penerimaan autentikasi dan modul terhadap database existing maupun hosting tujuan masih terbuka. Git status dan diff hanya dibaca. git diff --check lulus.

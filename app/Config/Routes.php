@@ -27,3 +27,16 @@ $routes->get('logout', 'AuthController::logout');
 $routes->get('workspace', 'WorkspaceController::index', ['filter' => 'ewo-admin:admin_panel']);
 $routes->get('workspace/(:any)', 'WorkspaceController::index', ['filter' => 'ewo-admin:admin_panel']);
 $routes->get('api/v1/dashboard', 'AdminController::workspaceDashboard', ['filter' => 'ewo-admin:admin_panel,json']);
+
+$routes->get('api/v1/work-orders/(incoming|outgoing)', 'WorkOrderController::index/$1',
+    ['filter' => 'ewo-admin:admin_panel,add_post,json']);
+
+
+$routes->get('api/v1/admin-directory/(categories|subcategories|locations|sublocations|departments|users|administrators)',
+    'AdminDirectoryController::index/$1', ['filter' => 'ewo-admin:admin_panel,json']);
+$routes->get('api/v1/reports/(incoming|outgoing)', 'WorkOrderController::report/$1',
+    ['filter' => 'ewo-admin:admin_panel,add_post,json']);
+$routes->get('api/v1/work-orders/drafts', 'WorkOrderController::index/drafts',
+    ['filter' => 'ewo-admin:admin_panel,add_post,json']);
+$routes->get('api/v1/work-orders/scheduled', 'WorkOrderController::index/scheduled',
+    ['filter' => 'ewo-admin:admin_panel,add_post,manage_all_posts,json']);

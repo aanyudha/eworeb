@@ -1,4 +1,4 @@
--- REVIEW PROPOSAL ONLY. This file is not a migration.
+-- HISTORICAL PROPOSAL. Execution and cutover are suspended under the legacy-first decision.
 -- Target: MySQL 8.0.16+ with InnoDB and a dedicated, approved KB schema.
 -- Select the schema separately. This file has no USE, grants, import or EWO table changes.
 

@@ -34,6 +34,7 @@ module.exports=async function knowledgeAssertions(request) {
   assert.equal(invalid.status,422);
   const first=(await expect(await write(admin,'POST',draft),201)).article;
   assert.equal(first.status,'draft');
+  assert.equal((await write(admin,'POST',draft)).status,409);
   assert.equal((await request(pub+'/'+first.slug)).status,404);
   assert.equal((await request('/kb/'+first.slug)).status,404);
   const updated=(await expect(await write(admin+'/'+first.id,'PUT',{...first,summary:'Updated guide with <em>plain text</em>.'}),200)).article;

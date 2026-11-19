@@ -8,9 +8,12 @@ import {
 } from './components'
 import './style.css'
 import KnowledgeAdmin from './KnowledgeAdmin'
+import WorkOrders from './WorkOrders'
+import AdminDirectory from './AdminDirectory'
 
 const mount = document.getElementById('root')!
-const { workspace, dashboardApi, login, logout, originalDashboard } = mount.dataset
+const { workspace, dashboardApi, login, logout, originalDashboard, workOrdersApi, reportsApi, workOrderRole, knowledgeEditor, scheduleAccess } = mount.dataset
+const directoryViews = JSON.parse(mount.dataset.directoryViews || '[]') as { path: string; label: string; endpoint: string }[]
 const queryClient = new QueryClient()
 const formats = new Intl.NumberFormat()
 const sections = [
@@ -95,7 +98,8 @@ function Workspace() {
     const val = params.get(name)
     if (val) filterQuery.set(name, val)
   }
-  const query = filterQuery.toString()
+  const isDashboardRoute = route.pathname === '/' || sections.some(section => section.path === route.pathname)
+  const query = isDashboardRoute ? filterQuery.toString() : ''
   const { data, error, isPending, refetch } = useQuery({
     queryKey: ['dashboard', query], queryFn: () => loadDashboard(query), retry: false,
   })
@@ -107,20 +111,44 @@ function Workspace() {
   }
   const page = data ? <DashboardPage data={data} mode={mode} search={search} onApply={apply} onDetails={setActiveRow} /> : null
   const readableError = error instanceof DashboardError ? error.message : 'Request failed. Check your connection and try again.'
-  const links = sections.filter(section => data?.summary[section.key]).map(({path, label}) => ({ path: String(path), label: String(label) }))
-  const knowledgeAdmin = data?.viewer.role === 'admin'
-  if (knowledgeAdmin) links.push({ path: '/knowledge', label: 'Knowledge Base' })
+  const dashboardContent = error ? <>
+    <PageHeader title="Dashboard" />
+    <ErrorState message={readableError}
+      action={error instanceof DashboardError && error.status === 401
+        ? <a href={login}>Sign in</a>
+        : <button className="secondary" onClick={() => void refetch()}>Retry</button>} />
+  </> : isPending ? <><PageHeader title="Dashboard" /><LoadingState /></> : page
+  const links: { path: string; label: string; preserveSearch?: boolean }[] = sections.filter(section => data?.summary[section.key]).map(({path, label}) => ({ path: String(path), label: String(label) }))
+  const knowledgeAdmin = knowledgeEditor === 'enabled'
+  if (knowledgeAdmin) links.push({ path: '/knowledge', label: 'Knowledge Base', preserveSearch: false })
+  if (workOrdersApi) links.push(
+    { path: '/work-orders/incoming', label: 'Incoming list', preserveSearch: false },
+    { path: '/work-orders/outgoing', label: 'Outgoing list', preserveSearch: false },
+  )
+  if (workOrdersApi) links.push({ path: '/work-orders/drafts', label: 'Drafts', preserveSearch: false })
+  if (scheduleAccess === 'enabled') links.push({ path: '/work-orders/scheduled', label: 'Scheduled', preserveSearch: false })
+  if (reportsApi) links.push(
+    { path: '/reports/incoming', label: 'Reports In', preserveSearch: false },
+    { path: '/reports/outgoing', label: 'Reports Out', preserveSearch: false },
+  )
+  const directoryLinks = directoryViews.map(({ path, label }) => ({ path, label, preserveSearch: false }))
+  links.push(...directoryLinks)
   return <AppShell viewer={data?.viewer} sections={links}
     search={search} onSearch={setSearch} classic={originalDashboard!} onLogout={() => setConfirm(true)}>
-    {isPending && <><PageHeader title="Dashboard" /><LoadingState /></>}
-    {error && <><PageHeader title="Dashboard" /><ErrorState message={readableError}
-      action={error instanceof DashboardError && error.status === 401 ? <a href={login}>Sign in</a> : <button className="secondary" onClick={() => void refetch()}>Retry</button>} /></>}
-    {page && <Routes>
-      <Route path="/" element={page} />
-      {sections.map(section => <Route key={section.path} path={section.path} element={page} />)}
+    <Routes>
+      <Route path="/" element={dashboardContent} />
+      {sections.map(section => <Route key={section.path} path={section.path} element={dashboardContent} />)}
+      {workOrdersApi && <Route path="/work-orders/incoming" element={<WorkOrders endpoint={workOrdersApi} direction="incoming" role={Number(workOrderRole)} />} />}
+      {workOrdersApi && <Route path="/work-orders/outgoing" element={<WorkOrders endpoint={workOrdersApi} direction="outgoing" role={Number(workOrderRole)} />} />}
+      {workOrdersApi && <Route path="/work-orders/drafts" element={<WorkOrders endpoint={workOrdersApi} direction="drafts" role={Number(workOrderRole)} />} />}
+      {workOrdersApi && scheduleAccess === 'enabled' && <Route path="/work-orders/scheduled" element={<WorkOrders endpoint={workOrdersApi} direction="scheduled" role={Number(workOrderRole)} />} />}
+      {reportsApi && <Route path="/reports/incoming" element={<WorkOrders key="reports-in" endpoint={reportsApi} direction="incoming" role={Number(workOrderRole)} report />} />}
+      {reportsApi && <Route path="/reports/outgoing" element={<WorkOrders key="reports-out" endpoint={reportsApi} direction="outgoing" role={Number(workOrderRole)} report />} />}
+      {directoryViews.map(({ path, label, endpoint }) =>
+        <Route key={path} path={path} element={<AdminDirectory endpoint={endpoint} title={label} />} />)}
       {knowledgeAdmin && <Route path="/knowledge/*" element={<KnowledgeAdmin />} />}
       <Route path="*" element={<ErrorState message="This workspace page does not exist." action={<NavLink to="/">Return to dashboard</NavLink>} />} />
-    </Routes>}
+    </Routes>
     {activeRow && <DetailDrawer row={activeRow} onClose={() => setActiveRow(null)} />}
     {confirm && <ConfirmDialog onClose={() => setConfirm(false)} onConfirm={() => window.location.assign(logout!)} />}
   </AppShell>
