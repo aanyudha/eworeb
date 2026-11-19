@@ -9,6 +9,7 @@ import {
 import './style.css'
 import KnowledgeAdmin from './KnowledgeAdmin'
 import WorkOrders from './WorkOrders'
+import WorkOrderDetail from './WorkOrderDetail'
 import AdminDirectory from './AdminDirectory'
 
 const mount = document.getElementById('root')!
@@ -140,6 +141,8 @@ function Workspace() {
       {sections.map(section => <Route key={section.path} path={section.path} element={dashboardContent} />)}
       {workOrdersApi && <Route path="/work-orders/incoming" element={<WorkOrders endpoint={workOrdersApi} direction="incoming" role={Number(workOrderRole)} />} />}
       {workOrdersApi && <Route path="/work-orders/outgoing" element={<WorkOrders endpoint={workOrdersApi} direction="outgoing" role={Number(workOrderRole)} />} />}
+      {workOrdersApi && <Route path="/work-orders/incoming/:id" element={<WorkOrderDetail endpoint={workOrdersApi} direction="incoming" />} />}
+      {workOrdersApi && <Route path="/work-orders/outgoing/:id" element={<WorkOrderDetail endpoint={workOrdersApi} direction="outgoing" />} />}
       {workOrdersApi && <Route path="/work-orders/drafts" element={<WorkOrders endpoint={workOrdersApi} direction="drafts" role={Number(workOrderRole)} />} />}
       {workOrdersApi && scheduleAccess === 'enabled' && <Route path="/work-orders/scheduled" element={<WorkOrders endpoint={workOrdersApi} direction="scheduled" role={Number(workOrderRole)} />} />}
       {reportsApi && <Route path="/reports/incoming" element={<WorkOrders key="reports-in" endpoint={reportsApi} direction="incoming" role={Number(workOrderRole)} report />} />}

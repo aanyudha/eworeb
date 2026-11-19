@@ -13,6 +13,7 @@ const fields = {
   id: 'ID', name: 'Name', first_name: 'First name', last_name: 'Last name',
   parent_id: 'Parent ID', lang_id: 'Language ID', corp_id: 'Corporation ID',
   dept_id: 'Department ID', role: 'Role', status: 'Account status',
+  corp_code: 'Corporation code', corporation_status: 'Status', permissions: 'Permissions',
 }
 
 export default function AdminDirectory({ endpoint, title }: { endpoint: string; title: string }) {
@@ -64,7 +65,7 @@ export default function AdminDirectory({ endpoint, title }: { endpoint: string; 
       </table></div> : <p className="empty">No records found.</p>}
       <nav className="panel-head" aria-label={title + ' pages'}>
         <button type="button" className="secondary" disabled={page <= 1} onClick={() => goToPage(page - 1)}>Previous</button>
-        <span>Page {page} of {pageCount} · {result.total} records</span>
+        <span>Page {page} of {pageCount} ï¿½ {result.total} records</span>
         <button type="button" className="secondary" disabled={page >= pageCount} onClick={() => goToPage(page + 1)}>Next</button>
       </nav>
     </section>}

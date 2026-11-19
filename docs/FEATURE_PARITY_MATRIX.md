@@ -1,5 +1,32 @@
 # Matriks parity EWO CI3 → CI4
 
+## Status penerimaan MySQL legacy, 19 November 2026 WIB
+
+| Menu atau kemampuan | Status | Bukti dan batas |
+| --- | --- | --- |
+| Login dan logout | Fully working | Akun legacy login manual pada Apache, dashboard API 200, POST tanpa CSRF 403, sesi tetap berlaku saat navigasi, logout mengarah ke form login dan API kembali 401. users_logs bertambah 14 untuk satu akun selama pengujian dan semua aktivitas cocok dengan last_seen |
+| Dashboard | Read-only working | Browser desktop dan 390 px lulus. Dua skenario per role untuk enam role cocok dengan model CI3 pada MySQL eworeb |
+| Incoming WO | Read-only working | Browser desktop lulus. Daftar ID dan total cocok dengan model CI3 pada 12 skenario |
+| Outgoing WO | Read-only working | Browser desktop lulus. Daftar ID dan total cocok dengan model CI3 pada 12 skenario |
+| Work Order detail dan history | Read-only working | Detail memakai cakupan daftar Incoming atau Outgoing. 55 detail diuji dari baris daftar. 10 akses luar corporation ditolak. Chrome menguji detail Outgoing dan refresh. Lampiran dan mutasi belum tersedia |
+| Drafts | Read-only working | Query pada data legacy berhasil. Publish draft belum tersedia |
+| Categories dan Subcategories | Read-only working | Query CI4 menggunakan categories dan hubungan parent_id |
+| Locations dan Sublocations | Read-only working | Query CI4 menggunakan locations dan hubungan parent_id. Corporation dibatasi dari sesi |
+| Departments | Read-only working | Query CI4 membaca departments dan membatasi corporation |
+| Corporations | Read-only working | Sidebar mengikuti permission corps. Non-admin melihat corporation sendiri sesuai batas tugas. Pencarian dan pagination server-side tersedia. Chrome desktop lulus |
+| Users dan Administrators | Read-only working | Query menggunakan users. Daftar non-admin dibatasi pada corporation sesi. Mutasi akun belum tersedia |
+| Roles dan Permissions | Read-only working | Menggunakan roles_permissions. Menu dan endpoint hanya untuk administrator. Chrome desktop lulus |
+| Scheduled | Blocked by schema | posts.intervale dan posts.published_at absen. Menu disembunyikan dan endpoint memberi 503 pada pengguna yang memiliki izin |
+| Reports In dan Reports Out | Blocked by schema | posts.subcategory_id absen. Menu disembunyikan dan endpoint memberi 503. Ekspor fixture terdahulu tidak menetapkan penerimaan laporan legacy |
+| Create WO | Blocked by schema | CI3 menulis published_at pada posts dan posts_logs sekalipun WO bukan scheduled. Nilai dan tipe harus diverifikasi sebelum migrasi penulisan |
+| Update, assignment, status transition dan completion | Not yet migrated | Pengujian mutasi memerlukan salinan terisolasi dan pembuktian scope serta efek log CI3 |
+| Pengelolaan master, akun, role, profile, password dan settings | Not yet migrated | Belum ada endpoint tulis baru |
+| Knowledge Center | Fully working | Katalog JSON existing tetap aktif. Portal publik Apache lulus. Bukti MySQL KB terdahulu bersifat referensi dan tidak menetapkan target penyimpanan baru |
+
+Detail memakai ID dari daftar yang sama dan mengembalikan 404 untuk WO di luar cakupan. Riwayat dibatasi pada corporation WO dan mengikuti cabang join legacy berdasarkan ada tidaknya catatan awal. Nama editor dan assignee diambil hanya dari corporation tersebut. File lampiran belum disajikan.
+
+## Inventaris legacy dan bukti historis
+
 Status di bawah mencakup implementasi source dan bukti historis fixture. Penerimaan legacy-first mengikuti [audit aktual](LEGACY_DATABASE_ALIGNMENT.md), termasuk kegagalan Scheduled dan Reports pada kandidat dan status login yang belum diuji pada salinan pengembangan.
 
 Route admin berikut memakai prefix admin dari slug legacy. Izin berasal dari sidebar dan controller CI3. Semua API operasional CI4 juga melewati sesi server. Tanda — berarti halaman atau API CI4 belum tersedia. Bukti ini memakai data sintetis.

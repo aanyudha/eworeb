@@ -18,7 +18,9 @@
      data-dashboard-api="<?= esc(site_url('api/v1/dashboard'), 'attr') ?>"
      <?php if ($workOrderRole !== null): ?>
      data-work-orders-api="<?= esc(site_url('api/v1/work-orders'), 'attr') ?>"
+     <?php if ($reportsAccess): ?>
      data-reports-api="<?= esc(site_url('api/v1/reports'), 'attr') ?>"
+     <?php endif; ?>
      data-schedule-access="<?= $scheduleAccess ? 'enabled' : 'disabled' ?>"
      data-work-order-role="<?= esc((string) $workOrderRole, 'attr') ?>"
      <?php endif; ?>

@@ -24,6 +24,31 @@ final class WorkOrderController extends BaseController
         return $this->list($direction, true);
     }
 
+    public function detail(string $direction, string $id): ResponseInterface
+    {
+        $response = $this->response->setHeader('Cache-Control', 'private, no-store');
+        $viewer = service('ewoIdentity')?->currentUser();
+        if ($viewer === null) {
+            return $response->setStatusCode(401)->setJSON(['error' => 'Your session has expired.']);
+        }
+        $id = filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $page = $this->positiveInteger('page', 1, 1000000);
+        if ($id === false || $page === false) {
+            return $response->setStatusCode(422)->setJSON(['error' => 'Check the Work Order ID and page.']);
+        }
+        try {
+            $data = (new WorkOrderList(Database::connect('ewo')))->detail($viewer, $direction, $id, $page);
+            return $data === null
+                ? $response->setStatusCode(404)->setJSON(['error' => 'Work Order not found.'])
+                : $response->setJSON($data);
+        } catch (DomainException) {
+            return $response->setStatusCode(403)->setJSON(['error' => 'Work order scope is unavailable.']);
+        } catch (DatabaseException) {
+            return $response->setStatusCode(503)->setJSON(['error' => 'Work order detail is unavailable.']);
+        }
+    }
+
+
     private function list(string $direction, bool $report): ResponseInterface
     {
         $response = $this->response->setHeader('Cache-Control', 'private, no-store');
@@ -41,6 +66,12 @@ final class WorkOrderController extends BaseController
 
         try {
             $list = new WorkOrderList(Database::connect('ewo'));
+            $missing = $list->missingColumns($direction, $report);
+            if ($missing !== []) {
+                return $response->setStatusCode(503)->setJSON([
+                    'error' => 'This menu is unavailable because the legacy schema lacks ' . implode(', ', $missing) . '.',
+                ]);
+            }
             return $response->setJSON($list->page($viewer, $direction, $filters, $page, $pageSize, $report));
         } catch (DomainException) {
             return $response->setStatusCode(403)->setJSON(['error' => 'Work order scope is unavailable.']);

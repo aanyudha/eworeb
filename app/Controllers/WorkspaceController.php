@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\AdminDirectory;
+use App\Models\WorkOrderList;
+use Config\Database;
 use CodeIgniter\HTTP\ResponseInterface;
 
 final class WorkspaceController extends BaseController
@@ -37,10 +39,13 @@ final class WorkspaceController extends BaseController
         }
 
 
+        $workOrders = $workOrderRole !== null ? new WorkOrderList(Database::connect('ewo')) : null;
         return $this->response->setHeader('Cache-Control', 'private, no-store')->setBody(view('admin/workspace', [
             'entry' => $entry,
             'workOrderRole' => $workOrderRole,
-            'scheduleAccess' => $workOrderRole !== null && $identity->allows($viewer, 'manage_all_posts'),
+            'scheduleAccess' => $workOrders !== null && $identity->allows($viewer, 'manage_all_posts')
+                && $workOrders->missingColumns('scheduled') === [],
+            'reportsAccess' => $workOrders !== null && $workOrders->missingColumns('incoming', true) === [],
             'directoryViews' => $directoryViews,
             'knowledgeAdmin' => ($viewer['role'] ?? null) === 'admin',
         ]));

@@ -17,6 +17,8 @@ final class AdminDirectory
         'departments' => ['departments', 'departments', 'Departments'],
         'users' => ['users', 'users', 'Users'],
         'administrators' => ['users', 'users', 'Administrators'],
+        'corporations' => ['corps', 'corps', 'Corporations'],
+        'roles' => ['roles_permissions', 'administrator', 'Roles and Permissions'],
     ];
 
     public function __construct(private readonly BaseConnection $db)
@@ -33,12 +35,18 @@ final class AdminDirectory
             return false;
         }
 
+        if ($resource === 'roles') {
+            return $admin;
+        }
         return $identity->allows($viewer, self::VIEWS[$resource][1])
             && ($resource !== 'administrators' || $admin);
     }
 
     public function page(string $resource, array $viewer, string $search, int $page): array
     {
+        if ($resource === 'roles') {
+            return $this->roles($search, $page);
+        }
         [$table] = self::VIEWS[$resource];
         $admin = $viewer['role'] === 'admin';
         $userList = $table === 'users';
@@ -47,7 +55,7 @@ final class AdminDirectory
             if (!isset($viewer['corp_id']) || !ctype_digit((string) $viewer['corp_id']) || (int) $viewer['corp_id'] <= 0) {
                 throw new \DomainException('Corporation scope is unavailable.');
             }
-            $query->where('record.corp_id', $viewer['corp_id']);
+            $query->where($table === 'corps' ? 'record.id' : 'record.corp_id', $viewer['corp_id']);
         }
 
         if ($userList) {
@@ -55,6 +63,10 @@ final class AdminDirectory
             if ($search !== '') {
                 $query->groupStart()->like('record.username', $search)->orLike('record.first_name', $search)
                     ->orLike('record.last_name', $search)->groupEnd();
+            }
+        } elseif ($table === 'corps') {
+            if ($search !== '') {
+                $query->groupStart()->like('record.name', $search)->orLike('record.corp_code', $search)->groupEnd();
             }
         } else {
             $child = in_array($resource, ['subcategories', 'sublocations'], true);
@@ -73,6 +85,8 @@ final class AdminDirectory
         if ($userList) {
             $query->select('record.id, record.username AS name, record.first_name, record.last_name, record.role, record.status, record.corp_id, record.dept_id')
                 ->orderBy('record.username');
+        } elseif ($table === 'corps') {
+            $query->select('record.id, record.name, record.corp_code, record.status AS corporation_status')->orderBy('record.corp_order');
         } else {
             $query->select('record.id, record.name, record.parent_id, record.lang_id');
             if ($table !== 'categories') {
@@ -85,5 +99,25 @@ final class AdminDirectory
         $items = $query->orderBy('record.id')->get($size, ($page - 1) * $size)->getResultArray();
         return ['items' => $items, 'page' => $page, 'pageSize' => $size, 'total' => $total];
     }
-}
 
+    private function roles(string $search, int $page): array
+    {
+        $fields = ['admin_panel', 'add_post', 'manage_all_posts', 'categories', 'locations', 'departments', 'corps', 'users', 'settings'];
+        $query = $this->db->table('roles_permissions');
+        if ($search !== '') {
+            $query->groupStart()->like('role_name', $search)->orLike('role', $search)->groupEnd();
+        }
+        $size = 25;
+        $total = $query->countAllResults(false);
+        $rows = $query->select(array_merge(['id', 'role_name AS name', 'role'], $fields))->orderBy('id')
+            ->get($size, ($page - 1) * $size)->getResultArray();
+        $items = array_map(static function (array $row) use ($fields): array {
+            $granted = array_filter($fields, static fn (string $field) => (int) $row[$field] === 1);
+            return ['id' => $row['id'], 'name' => $row['name'], 'role' => $row['role'],
+                'permissions' => $row['role'] === 'admin' ? 'All permissions' : implode(', ', str_replace('_', ' ', $granted))];
+        }, $rows);
+
+        return ['items' => $items, 'page' => $page, 'pageSize' => $size, 'total' => $total];
+    }
+
+}

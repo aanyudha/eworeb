@@ -1,5 +1,18 @@
 # Progres migrasi EWO
 
+## Login MySQL asli dan menu baca-saja, 19 November 2026 WIB
+
+- Akun legacy login manual melalui Apache ke database eworeb TCP 3310. Kata sandi, role dan hash tidak diubah. Chrome menguji API dashboard 200, penolakan POST tanpa CSRF 403, sesi saat navigasi, logout dan penolakan API 401 setelah logout. Terdapat 14 aktivitas baru untuk satu akun selama pengujian dan last_seen cocok dengan semuanya.
+- WorkOrderList serta WorkOrderController menambah detail dan riwayat paginasi dalam scope daftar. AdminDirectory menambah daftar corporation dan role/permission. WorkspaceController membatasi menu Scheduled dan Reports berdasarkan ketersediaan kolom aktual. React menampilkan tautan detail dari daftar dan memakai route SPA.
+- Probe read-only pada MySQL membandingkan model CI3 dengan CI4 pada 12 skenario dashboard dan 24 skenario daftar. Probe kedua memeriksa 55 detail dan menolak 10 akses lintas corporation. Chrome desktop merender Dashboard, daftar Incoming/Outgoing, detail Outgoing dan refresh, Corporations dan Roles. Dashboard lolos pada viewport 390 px. Jumlah baris dan checksum posts serta posts_logs identik sebelum dan sesudah regresi.
+- PHP lint, TypeScript dan Vite lulus. Vite memberi peringatan ukuran chunk PDF/font yang dimuat saat ekspor. Tidak ada DDL, data dummy, perubahan WO atau pengujian mutasi pada salinan pengembangan. [Status setiap menu](FEATURE_PARITY_MATRIX.md#status-penerimaan-mysql-legacy-19-november-2026-wib)
+
+### Analisis Scheduled dan Reports
+
+- Scheduled memiliki route dan menu aktif pada CI3. Post_admin_model::add_post dan add_post_logs menulis published_at, serta intervale untuk jadwal. scheduled_posts_update, query pemilihan berdasarkan menit, INSERT riwayat jadwal, dan Cron_controller::check_scheduled_posts membaca atau memperbarui kedua nilai. Tampilan scheduled_posts.php memakai interval, tanggal berikutnya dan sisa hari. Kedua nama field absen dari tiga dump serta tabel posts dan posts_logs di salinan legacy. Tanggal dan interval asli perlu ditelusuri pada versi schema lain atau backup yang sesuai. Penambahan kolom dan backfill memerlukan bukti tipe, nullability, nilai asli, serta persetujuan.
+- Reports In/Out memakai kategori utama dan membaca subcategory_id untuk label kedua. Partial formulir legacy juga mereferensikan field itu, sedangkan filter_posts membaca parameter subcategory tanpa menambah predikat SQL. final_db_deploy.sql menyimpan definisi subcategory_id INT(11) DEFAULT NULL pada posts dan posts_logs. Definisi itu absen dari ewohotel_tntrm.sql dan salinan aktif. user.sql hanya berisi users. Konfirmasi sumber nilai subkategori yang historis serta hasil panel legacy sebelum memilih perubahan. Hindari menjalankan dump dengan DROP TABLE atau menebak isi subkategori. Query dan hasil ekspor dipertahankan.
+- Jalur tulis ditahan. Create tidak dapat mengikuti CI3 selama published_at absen. Update, assignment, completion, pengelolaan master dan akun memerlukan uji pada database terisolasi yang disetujui. Knowledge Center tetap memakai JSON. Katalog MySQL memerlukan pilihan penyimpanan terpisah dari tabel Work Order.
+
 ## Penyalinan legacy ke eworeb, 19 November 2026 WIB
 
 - Setelah izin eksplisit, 18 tabel dan 443.998 record asli disalin dari ewohotel_tentrem ke eworeb pada TCP 3310. Backup, metadata dan checksum seluruh tabel diverifikasi.

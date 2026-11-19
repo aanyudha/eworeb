@@ -32,7 +32,7 @@ $routes->get('api/v1/work-orders/(incoming|outgoing)', 'WorkOrderController::ind
     ['filter' => 'ewo-admin:admin_panel,add_post,json']);
 
 
-$routes->get('api/v1/admin-directory/(categories|subcategories|locations|sublocations|departments|users|administrators)',
+$routes->get('api/v1/admin-directory/(categories|subcategories|locations|sublocations|departments|corporations|users|administrators|roles)',
     'AdminDirectoryController::index/$1', ['filter' => 'ewo-admin:admin_panel,json']);
 $routes->get('api/v1/reports/(incoming|outgoing)', 'WorkOrderController::report/$1',
     ['filter' => 'ewo-admin:admin_panel,add_post,json']);
@@ -40,3 +40,5 @@ $routes->get('api/v1/work-orders/drafts', 'WorkOrderController::index/drafts',
     ['filter' => 'ewo-admin:admin_panel,add_post,json']);
 $routes->get('api/v1/work-orders/scheduled', 'WorkOrderController::index/scheduled',
     ['filter' => 'ewo-admin:admin_panel,add_post,manage_all_posts,json']);
+$routes->get('api/v1/work-orders/(incoming|outgoing)/(:num)', 'WorkOrderController::detail/$1/$2',
+    ['filter' => 'ewo-admin:admin_panel,add_post,json']);

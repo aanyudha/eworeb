@@ -10,6 +10,7 @@ use DomainException;
 
 final class WorkOrderList
 {
+    private const ACTIVE = ['p.visibility' => 1, 'p.status' => 1, 'p.is_scheduled' => 0];
     private const FILTERS = [
         'lang_id' => 'lang_id', 'post_type' => 'post_type', 'category' => 'category_id', 'user' => 'user_id',
     ];
@@ -32,7 +33,7 @@ final class WorkOrderList
             if ($direction === 'drafts') {
                 $query->where('p.status !=', 1);
             } else {
-                $query->where(['p.visibility' => 1, 'p.status' => 1, 'p.is_scheduled' => 0]);
+                $query->where(self::ACTIVE);
             }
             $this->applyDirectionalScope($query, $viewer, $filters, $direction === 'incoming');
         }
@@ -77,6 +78,52 @@ final class WorkOrderList
 
         return ['items' => $rows, 'page' => $page, 'pageSize' => $pageSize, 'total' => $total];
     }
+
+    public function missingColumns(string $direction, bool $report = false): array
+    {
+        $required = $report ? ['subcategory_id'] : ($direction === 'scheduled' ? ['intervale', 'published_at'] : []);
+        return $required === [] ? [] : array_values(array_diff($required, $this->db->getFieldNames('posts')));
+    }
+
+    public function detail(array $viewer, string $direction, int $id, int $page): ?array
+    {
+        if (!in_array($direction, ['incoming', 'outgoing'], true)
+            || !(new DashboardRepository($this->db))->supports($viewer)) {
+            throw new DomainException('Work order scope is unavailable.');
+        }
+
+        $query = $this->db->table('posts p')
+            ->select('p.id, p.title, p.summary, p.category_id, p.role_id, p.corp_id, p.dept_id, p.user_id,
+                p.assign_to, p.created_at, p.edited_at, category.name AS category, location.name AS location,
+                sublocation.name AS sublocation, department.name AS department')
+            ->join('categories category', 'category.id = p.category_id', 'left')
+            ->join('locations location', 'location.id = p.location_id AND location.corp_id = p.corp_id', 'left')
+            ->join('locations sublocation', 'sublocation.id = p.sublocation_id AND sublocation.corp_id = p.corp_id', 'left')
+            ->join('departments department', 'department.id = p.dept_id AND department.corp_id = p.corp_id', 'left')
+            ->where(self::ACTIVE)->where('p.id', $id);
+        $this->applyDirectionalScope($query, $viewer, [], $direction === 'incoming');
+        $post = $query->get()->getRowArray();
+        if ($post === null) {
+            return null;
+        }
+
+        $history = $this->db->table('posts_logs log')->where(['log.post_id' => $id, 'log.corp_id' => $post['corp_id']]);
+        $includesInitialEntry = (clone $history)->where(['log.assign_to' => null, 'log.edited_by' => null,
+            'log.edited_at' => null])->countAllResults() > 0;
+        $history->join('categories category', 'category.id = log.category_id')
+            ->join('users editor', 'editor.id = log.edited_by AND editor.corp_id = log.corp_id', $includesInitialEntry ? 'left' : 'inner')
+            ->join('users assignee', 'assignee.id = log.assign_to AND assignee.corp_id = log.corp_id', 'left');
+        $size = 25;
+        $total = $history->countAllResults(false);
+        $rows = $history->select('log.id, log.summary, log.created_at, log.edited_at, category.name AS category,
+            editor.first_name AS editor_first, editor.last_name AS editor_last,
+            assignee.first_name AS assignee_first, assignee.last_name AS assignee_last')
+            ->orderBy('log.edited_at', 'DESC')->orderBy('log.id', 'DESC')
+            ->get($size, ($page - 1) * $size)->getResultArray();
+
+        return ['item' => $post, 'history' => ['items' => $rows, 'total' => $total, 'page' => $page, 'pageSize' => $size]];
+    }
+
 
     private function applyDirectionalScope(BaseBuilder $query, array $viewer, array $filters, bool $incoming): void
     {

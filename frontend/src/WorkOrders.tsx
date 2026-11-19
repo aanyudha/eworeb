@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ErrorState, LoadingState, PageHeader } from './components'
 
 import { exportReport, reportHeadings } from './reportExport'
@@ -154,7 +154,9 @@ export default function WorkOrders({ endpoint, direction, role, report = false }
               {direction === 'scheduled' && <><th scope="col">Interval</th><th scope="col">Next publication</th></>}
             </tr></thead>
             <tbody>{result.items.map(order => <tr key={order.id}>
-              <td>{order.id}</td><td>{order.title}</td><td>{order.summary}</td>
+              <td>{order.id}</td><td>{direction === 'incoming' || direction === 'outgoing'
+                ? <Link to={'/work-orders/' + direction + '/' + order.id} state={{ listSearch: search }}>{order.title || 'Work Order #' + order.id}</Link>
+                : order.title}</td><td>{order.summary}</td>
               <td>{order.category_id === null ? '' : statusNames[order.category_id] ?? order.category_id}</td><td>{order.corp_id}</td><td>{order.dept_id}</td>
               <td>{order.role_id}</td><td>{order.user_id}</td>              <td>{order.created_at}</td><td>{order.edited_at}</td>
               {direction === 'scheduled' && <><td>{order.intervale}</td><td>{order.published_at}</td></>}
