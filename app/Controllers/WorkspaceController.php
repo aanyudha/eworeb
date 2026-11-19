@@ -45,6 +45,8 @@ final class WorkspaceController extends BaseController
             'workOrderRole' => $workOrderRole,
             'scheduleAccess' => $workOrders !== null && $identity->allows($viewer, 'manage_all_posts')
                 && $workOrders->missingColumns('scheduled') === [],
+            'replyAccess' => $workOrders !== null && env('ewo.workOrderWrites', false) === true
+                && $identity->allows($viewer, 'manage_all_posts'),
             'reportsAccess' => $workOrders !== null && $workOrders->missingColumns('incoming', true) === [],
             'directoryViews' => $directoryViews,
             'knowledgeAdmin' => ($viewer['role'] ?? null) === 'admin',

@@ -55,21 +55,13 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
         await until(()=>evaluate("document.readyState==='complete' && document.querySelector('h1')?.innerText==='Login'"));
         assert.equal(await evaluate("getComputedStyle(document.querySelector('.login-box')).width"),'360px');
         await evaluate("document.querySelector('#email').value='admin@example.test'; document.querySelector('#password').value='fixture-password'; document.querySelector('button[type=submit]').click()");
-        await until(()=>evaluate("location.pathname==='/admin' && document.readyState==='complete' && document.querySelector('h1')?.innerText==='Dashboard'"));
-        const desktop=await evaluate("({cards:document.querySelectorAll('.dashboard-stats dd').length,grid:getComputedStyle(document.querySelector('.dashboard-stats')).display,jquery:typeof jQuery})");
-        assert.deepEqual(desktop,{cards:10,grid:'grid',jquery:'function'});
-        await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
-        await sleep(450);
-        const layout=await evaluate("({viewport:document.documentElement.clientWidth,scrollWidth:document.documentElement.scrollWidth,overflow:[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>document.documentElement.clientWidth+1).slice(0,5).map(e=>[e.tagName,e.className,e.getBoundingClientRect().right])})");
-        assert.ok(layout.scrollWidth<=layout.viewport,JSON.stringify(layout));
-        await evaluate("document.querySelector('.sidebar-toggle').click()");
-        await until(()=>evaluate("document.body.classList.contains('sidebar-open')"));
-
-        assert.deepEqual(errors,[]);
-        console.log('Chrome: classic dashboard smoke passed');
-        await send('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});
-        await evaluate("[...document.querySelectorAll('a')].find(a=>a.textContent==='React workspace').click()");
         await until(()=>evaluate("location.pathname==='/workspace' && document.querySelector('.kpi strong') !== null"));
+        assert.equal(await evaluate("[...document.querySelectorAll('a')].some(a=>a.textContent==='Classic dashboard')"),false);
+        await send('Page.navigate',{url:origin+'/admin'});
+        await until(()=>evaluate("location.pathname==='/workspace' && document.querySelector('.kpi strong') !== null"));
+        await send('Page.reload');
+        await until(()=>evaluate("location.pathname==='/workspace' && document.readyState==='complete' && document.querySelector('.kpi strong') !== null"));
+        console.log('Chrome: login goes directly to Workspace; /admin redirects; refresh keeps session');
         assert.equal(await evaluate("document.querySelectorAll('.kpi').length"),5);
         assert.equal(await evaluate("document.querySelectorAll('tbody tr').length"),10);
         await evaluate("window.__spaDocument='same'; document.querySelector('nav[aria-label=\"Workspace navigation\"] a[href$=\"/incoming\"]').click()");
@@ -103,7 +95,7 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
             await evaluate("document.querySelector('.scrim').click()");
         }
         await send('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});
-        if (process.env.EWO_HTTP_MYSQL_FIXTURE) {
+        if (process.env.EWO_HTTP_MYSQL_FIXTURE && !JSON.parse(process.env.EWO_HTTP_MYSQL_FIXTURE).replies) {
             await evaluate("document.querySelector('nav a[href*=\"/work-orders/incoming\"]').click()");
             await until(()=>evaluate("document.querySelector('h1')?.innerText==='Incoming Work Orders' && document.querySelector('tbody')?.innerText.includes('Fixture WO')"));
             await evaluate("[...document.querySelectorAll('nav[aria-label=\"Work order pages\"] button')].find(b=>b.textContent==='Next').click()");
@@ -164,6 +156,16 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
         await evaluate("[...document.querySelectorAll('.knowledge-confirm button')].find(b=>b.textContent.includes('Confirm withdraw')).click()");
         await until(()=>evaluate("document.querySelector('.knowledge-review .panel-head span')?.innerText.includes('draft')"));
         console.log('Chrome: admin draft, review, publish, and withdraw passed');
+        if (JSON.parse(process.env.EWO_HTTP_MYSQL_FIXTURE ?? 'null')?.replies) {
+            await send('Page.navigate',{url:origin+'/workspace/work-orders/incoming?role=3&corpnya=1'});
+            const link=await until(()=>evaluate("document.querySelector('tbody a[href*=\"/work-orders/incoming/\"]')?.href"));
+            await send('Page.navigate',{url:link});
+            await until(()=>evaluate("document.querySelector('form [name=assign_to] option:nth-child(2)')!==null"));
+            await evaluate("const form=document.querySelector('form:has([name=summary_edit])');form.elements.category_id.value='3';form.elements.assign_to.selectedIndex=1;form.elements.summary_edit.value='Verified browser reply';form.requestSubmit();");
+            await until(()=>evaluate("document.body.innerText.includes('Reply saved.') && document.body.innerText.includes('Verified browser reply')"));
+            console.log('Chrome: real Reply form saves and refreshes history on isolated MySQL');
+        }
+
         await evaluate("document.querySelector('summary[aria-label=\"Profile menu\"]').click(); [...document.querySelectorAll('.popover button')].find(b=>b.textContent.includes('Sign out')).click()");
         assert.equal(await evaluate("document.querySelector('dialog h2').innerText"),'Sign out?');
         await evaluate("document.querySelector('dialog button.primary').click()");

@@ -23,7 +23,8 @@ async function testMySql() {
   if (!php || !mysqld || !path.isAbsolute(php) || !path.isAbsolute(mysqld)) {
     throw Error('Pass absolute paths to php.exe and MySQL 8.0 mysqld.exe')
   }
-  if (extraArgs.length) throw Error('Extra arguments are disabled; legacy-first acceptance uses an approved development copy')
+  const replies = extraArgs.length === 1 && extraArgs[0] === '--wo-replies'
+  if (extraArgs.length && !replies) throw Error('Only --wo-replies is supported')
   const runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'eworeb-mysql-'))
   const datadir = path.join(runtime, 'data')
   const mysqlLog = path.join(runtime, 'mysql.log')
@@ -51,12 +52,12 @@ async function testMySql() {
     const extensions = ['-n','-d','extension_dir='+path.join(path.dirname(php),'ext'),
       '-d','extension=sqlite3','-d','extension=mysqli']
     execFileSync(php, [...extensions,path.join(__dirname,'auth-http-fixture.php'),sqlite], { ...quiet })
-    const settings = { port, datadir, password }
+    const settings = { port, datadir, password, replies }
     const env = { ...process.env }
     execFileSync(php, [...extensions,fixture,sqlite,'init'],
       { ...quiet, stdio:'inherit', env:{ ...env, EWO_HTTP_MYSQL_FIXTURE:JSON.stringify({ ...settings, rootPassword }) } })
     execFileSync(process.execPath, [path.join(__dirname,'auth-http.cjs'),php],
-      { windowsHide:true, stdio:'inherit', env:{ ...env, EWO_HTTP_MYSQL_FIXTURE:JSON.stringify(settings) } })
+      { windowsHide:true, stdio:'inherit', env:{ ...env, EWO_REPLY_FIXTURE_ADMIN: replies ? rootPassword : "", EWO_HTTP_MYSQL_FIXTURE:JSON.stringify(settings) } })
   } finally {
     if (server.exitCode === null) {
       try { admin('shutdown') } catch { server.kill() }

@@ -1,5 +1,20 @@
 # EWO Reborn
 
+## Dashboard tunggal dan transaksi balasan terisolasi
+
+Login POST sukses mengarah langsung ke Workspace React. Route /admin menjaga admin_panel dan batas role lalu mengarah ke Workspace. View klasik disimpan sebagai referensi regresi. Public Knowledge Center, login, dashboard API, CSRF, dan sesi tetap tersedia.
+
+Operasi tulis hanya aktif bila ewo.workOrderWrites=true pada instance yang disetujui. Salinan eworeb port 3310 dipertahankan baca-saja untuk pekerjaan ini. Mode --wo-replies memakai datadir sementara, port loopback berbeda, SHOW CREATE baca-saja terhadap definisi yang diperlukan, dan hanya input terkontrol. Jalankan dari Windows PowerShell setelah build aset:
+
+~~~powershell
+$env:EWO_TEST_SUBFOLDER = '1'
+$env:EWO_LEGACY_SOURCE = 'C:\xampp8212\htdocs\ewo'
+$env:EWO_TEST_BROWSER = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+node tests/integration/mysql-workspace.cjs 'C:\xampp8512\php\php.exe' 'C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqld.exe' --wo-replies
+~~~
+
+File media lama dapat dipasang sebagai ewo.workOrderMediaRoot di luar document root dengan subfolder images dan audios serta extension PHP fileinfo. Jangan mengarahkan folder unggahan legacy ke HTTP publik untuk mencoba fitur. Referensi yang file-nya belum tersedia tetap tampil tanpa tautan.
+
 ## Build frontend dan shared hosting
 
 Dari root project, jalankan dengan Node.js LTS yang kompatibel dengan Vite 7.

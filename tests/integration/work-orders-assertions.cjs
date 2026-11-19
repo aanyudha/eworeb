@@ -2,12 +2,12 @@ const assert = require('node:assert/strict')
 
 module.exports = async function testWorkOrders(request, login, location) {
   assert.equal((await request('/api/v1/work-orders/incoming')).status, 401)
-  assert.equal(location(await login('staff@example.test', 'fixture-password')), '/admin')
+  assert.equal(location(await login('staff@example.test', 'fixture-password')), '/workspace')
   assert.equal((await request('/api/v1/work-orders/outgoing')).status, 403)
   await request('/logout')
 
   for (const [account, corp] of [['admin', null], ['corpadmin', 1], ['gm', 2], ['engineering', 1], ['employee', 1]]) {
-    assert.equal(location(await login(account+'@example.test', 'fixture-password')), '/admin')
+    assert.equal(location(await login(account+'@example.test', 'fixture-password')), '/workspace')
     for (const direction of ['incoming', 'outgoing']) {
       const uri = '/api/v1/work-orders/' + direction
       const response = await request(uri + '?per_page=2')
@@ -38,13 +38,13 @@ module.exports = async function testWorkOrders(request, login, location) {
     await request('/logout')
   }
 
-  assert.equal(location(await login('other@example.test', 'fixture-password')), '/admin')
+  assert.equal(location(await login('other@example.test', 'fixture-password')), '/workspace')
   assert.equal((await request('/api/v1/work-orders/incoming')).status, 403)
   await request('/logout')
 
   assert.equal((await request('/api/v1/admin-directory/categories')).status, 401)
   for (const [account, corp] of [['admin', null], ['engineering', '1'], ['gm', '2']]) {
-    assert.equal(location(await login(account+'@example.test','fixture-password')), '/admin')
+    assert.equal(location(await login(account+'@example.test','fixture-password')), '/workspace')
     for (const resource of ['categories','subcategories','locations','sublocations','departments','users','administrators']) {
       const response = await request('/api/v1/admin-directory/' + resource)
       if (resource === 'administrators' && account !== 'admin') {
@@ -68,16 +68,16 @@ module.exports = async function testWorkOrders(request, login, location) {
     assert.equal((await request('/api/v1/admin-directory/users?page=0')).status, 422)
     await request('/logout')
   }
-  assert.equal(location(await login('employee@example.test','fixture-password')), '/admin')
+  assert.equal(location(await login('employee@example.test','fixture-password')), '/workspace')
   assert.equal((await request('/api/v1/admin-directory/categories')).status,403)
   await request('/logout')
   console.log('Directories: permission, hierarchy, corporation scope, search, and response allowlist PASS')
 
   assert.equal((await request('/api/v1/reports/incoming')).status, 401)
-  assert.equal(location(await login('staff@example.test','fixture-password')), '/admin')
+  assert.equal(location(await login('staff@example.test','fixture-password')), '/workspace')
   assert.equal((await request('/api/v1/reports/incoming')).status, 403)
   await request('/logout')
-  assert.equal(location(await login('engineering@example.test','fixture-password')), '/admin')
+  assert.equal(location(await login('engineering@example.test','fixture-password')), '/workspace')
   for (const direction of ['incoming','outgoing']) {
     const query = '?show=3&corpnya=2&q=Fixture'
     const response = await request('/api/v1/reports/' + direction + query)
@@ -96,14 +96,14 @@ module.exports = async function testWorkOrders(request, login, location) {
   for (const mode of ['drafts','scheduled']) {
     assert.equal((await request('/api/v1/work-orders/' + mode)).status,401)
   }
-  assert.equal(location(await login('employee@example.test','fixture-password')), '/admin')
+  assert.equal(location(await login('employee@example.test','fixture-password')), '/workspace')
   assert.equal((await request('/api/v1/work-orders/scheduled')).status,403)
   const drafts = await (await request('/api/v1/work-orders/drafts?corpnya=2')).json()
   assert.equal(drafts.total,1)
   assert.ok(drafts.items.every(item=>item.corp_id===1 && item.dept_id===10 && item.role_id!==4))
   await request('/logout')
 
-  assert.equal(location(await login('corpadmin@example.test','fixture-password')), '/admin')
+  assert.equal(location(await login('corpadmin@example.test','fixture-password')), '/workspace')
   const scheduled = await (await request('/api/v1/work-orders/scheduled?corpnya=2')).json()
   assert.equal(scheduled.total,1)
   assert.ok(scheduled.items.every(item=>item.corp_id===1 && item.published_at==='2026-02-01 10:00:00'))

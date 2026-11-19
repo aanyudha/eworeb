@@ -1,5 +1,14 @@
 # Progres migrasi EWO
 
+## Workspace tunggal dan balasan WO, 19 November 2026 WIB
+
+- AuthController mengarahkan login sukses langsung ke Workspace. AdminController menjaga izin dan scope sebelum mengalihkan /admin. Navigasi React sudah tanpa tautan dashboard klasik. View klasik tetap disimpan. Chrome menguji guest, login, redirect, refresh, deep link, back/forward, logout, serta desktop, tablet dan mobile pada fixture. Apache aktif melayani bundel dan Knowledge Center pada jalur guest. Login ke salinan existing tidak diulang agar aktivitasnya tidak ditulis.
+- WorkOrderReply dan route GET/POST reply menangani balasan tipe post. Form React memuat status dan assignee yang diizinkan. Update kategori, assignee, editor dan waktu edit bersifat atomik dengan INSERT history. ewo.workOrderWrites tetap nonaktif pada eworeb port 3310.
+- Mode --wo-replies menyalin definisi tabel yang diperlukan dari eworeb melalui koneksi read-only. Seluruh penulisan menggunakan instance MySQL loopback sementara terpisah yang disetujui. HTTP lulus untuk CSRF, input ditolak, scope, assignment, Closed, Reopen, stale revision, histori, dan rollback saat hak INSERT riwayat dicabut di fixture. Chrome membuktikan formulir menyimpan dan memuat riwayat. Uji mencakup revisi usang dan row lock pada implementasi. Skenario dua request paralel tidak dijalankan.
+- Endpoint attachments menggunakan scope WO dan root media privat. Tes fixture mengunduh gambar yang valid dan menolak traversal serta akses lintas corporation. Arsip asli belum terpasang; sampel lokal 250 referensi tidak menemukan file. Upload dan perubahan referensi belum tersedia.
+- MySQL eworeb lulus 12 skenario Dashboard dan 24 skenario daftar terhadap CI3, 55 pemeriksaan detail dan 10 penolakan lintas corporation. Row count dan SHA-256 posts serta posts_logs sama antara awal dan akhir. Tidak ada DDL, mutasi WO, atau perubahan .env pada port 3310.
+- PHP lint, PHPUnit 7 tes/32 assertion, TypeScript dan Vite lulus. Vite memperingatkan ukuran chunk PDF/font yang dimuat sesuai kebutuhan. Knowledge Center JSON dan editor lulus di fixture. Status Create, Scheduled, Reports dan pekerjaan sisa dicatat dalam matriks. [Matriks parity](FEATURE_PARITY_MATRIX.md) · [Kontrak CI3](LEGACY_DATABASE_ALIGNMENT.md)
+
 ## Login MySQL asli dan menu baca-saja, 19 November 2026 WIB
 
 - Akun legacy login manual melalui Apache ke database eworeb TCP 3310. Kata sandi, role dan hash tidak diubah. Chrome menguji API dashboard 200, penolakan POST tanpa CSRF 403, sesi saat navigasi, logout dan penolakan API 401 setelah logout. Terdapat 14 aktivitas baru untuk satu akun selama pengujian dan last_seen cocok dengan semuanya.
@@ -12,6 +21,36 @@
 - Scheduled memiliki route dan menu aktif pada CI3. Post_admin_model::add_post dan add_post_logs menulis published_at, serta intervale untuk jadwal. scheduled_posts_update, query pemilihan berdasarkan menit, INSERT riwayat jadwal, dan Cron_controller::check_scheduled_posts membaca atau memperbarui kedua nilai. Tampilan scheduled_posts.php memakai interval, tanggal berikutnya dan sisa hari. Kedua nama field absen dari tiga dump serta tabel posts dan posts_logs di salinan legacy. Tanggal dan interval asli perlu ditelusuri pada versi schema lain atau backup yang sesuai. Penambahan kolom dan backfill memerlukan bukti tipe, nullability, nilai asli, serta persetujuan.
 - Reports In/Out memakai kategori utama dan membaca subcategory_id untuk label kedua. Partial formulir legacy juga mereferensikan field itu, sedangkan filter_posts membaca parameter subcategory tanpa menambah predikat SQL. final_db_deploy.sql menyimpan definisi subcategory_id INT(11) DEFAULT NULL pada posts dan posts_logs. Definisi itu absen dari ewohotel_tntrm.sql dan salinan aktif. user.sql hanya berisi users. Konfirmasi sumber nilai subkategori yang historis serta hasil panel legacy sebelum memilih perubahan. Hindari menjalankan dump dengan DROP TABLE atau menebak isi subkategori. Query dan hasil ekspor dipertahankan.
 - Jalur tulis ditahan. Create tidak dapat mengikuti CI3 selama published_at absen. Update, assignment, completion, pengelolaan master dan akun memerlukan uji pada database terisolasi yang disetujui. Knowledge Center tetap memakai JSON. Katalog MySQL memerlukan pilihan penyimpanan terpisah dari tabel Work Order.
+
+### File tahap ini
+
+Suite fixture MySQL standar juga lulus untuk direktori, draft, Scheduled, PDF/XLSX dan navigasi. Temuan ekspor itu terbatas pada fixture yang memiliki kolom laporan.
+
+- `app/Config/Routes.php`
+- `app/Controllers/AdminController.php`
+- `app/Controllers/AuthController.php`
+- `app/Controllers/WorkOrderAttachmentController.php`
+- `app/Controllers/WorkOrderReplyController.php`
+- `app/Controllers/WorkspaceController.php`
+- `app/Models/WorkOrderAttachments.php`
+- `app/Models/WorkOrderList.php`
+- `app/Services/WorkOrderReply.php`
+- `app/Views/admin/workspace.php`
+- `docs/FEATURE_PARITY_MATRIX.md`
+- `docs/LEGACY_DATABASE_ALIGNMENT.md`
+- `docs/MIGRATION_PROGRESS.md`
+- `env`
+- `frontend/src/components.tsx`
+- `frontend/src/main.tsx`
+- `frontend/src/WorkOrderDetail.tsx`
+- `frontend/src/WorkOrderReply.tsx`
+- `README.md`
+- `tests/integration/auth-http.cjs`
+- `tests/integration/browser.cjs`
+- `tests/integration/mysql-fixture.php`
+- `tests/integration/mysql-workspace.cjs`
+- `tests/integration/wo-reply-assertions.cjs`
+- `tests/integration/work-orders-assertions.cjs`
 
 ## Penyalinan legacy ke eworeb, 19 November 2026 WIB
 

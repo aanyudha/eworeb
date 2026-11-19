@@ -1,5 +1,24 @@
 # Matriks parity EWO CI3 → CI4
 
+## Status dashboard tunggal dan alur WO, 19 November 2026 WIB
+
+Status ini menggantikan hasil historis di bawah. Salinan eworeb port 3310 digunakan untuk regresi read-only.
+
+| Modul | Status | Legacy, CI4, React dan bukti |
+| --- | --- | --- |
+| Login, redirect, dashboard | Fully working | Auth_controller dan dashboard lama menjadi acuan. AuthController menuju /workspace, AdminController menjaga admin_panel sebelum redirect /admin, API v1 dashboard tetap. Chrome fixture menguji login, redirect alias, refresh dan SPA history |
+| Incoming, Outgoing dan Drafts | Read-only working | Post_controller dan Post_admin_model, API v1 work-orders, Workspace dengan izin add_post. Parity MySQL real untuk daftar dan dashboard dicatat pada tahap sebelumnya |
+| Detail dan history | Read-only working | Post_controller::view_post dan Post_admin_model::get_posts_history. CI4 detail memakai scope daftar dan paginasi posts_logs. Nama editor dari corporation lain disembunyikan bagi non-admin |
+| Edit balasan, assignment, status, completion dan reopen untuk tipe post | Write functionality verified on isolated MySQL | Post_controller::update_post_post dan form Incoming/Closed. GET/POST api/v1/work-orders/incoming/{id}/reply, dipasang pada detail React Incoming. admin_panel, add_post, manage_all_posts, cakupan Incoming, layak_check, pilihan kategori dan assignee. Pengubahan empat field serta INSERT history diuji dengan schema legacy terisolasi. Default write gate tetap false |
+| Create WO, Scheduled | Blocked by schema | posts dan posts_logs tidak memiliki published_at; Scheduled juga tidak memiliki intervale. Tidak ada default palsu atau DDL |
+| Reports In/Out | Blocked by schema | posts.subcategory_id tidak tersedia; query syarat dan hasil ekspor tidak diubah |
+| Referensi lampiran dan unduhan privat | Read-only working | Legacy post_images serta post_audios/audios. Scope add_post dan daftar WO pada API attachments. File lokal uji diunduh melalui endpoint yang sama; arsip lampiran asli belum dipasang |
+| Upload, edit tipe khusus, draft publish, dan mutasi master/user | Not yet migrated | Belum ada route mutasi baru untuk alur tersebut |
+| Categories/Subcategories, Locations/Sublocations, Departments, Corporations, Users dan Administrators, Roles dan Permissions | Read-only working | API direktori dan React existing dipertahankan dengan permission yang sama |
+| Knowledge Center dan editor | Fully working | JSON existing; HTTP dan Chrome menguji publikasi admin, filter publik, direct link dan CSRF terisolasi |
+
+## Bukti tahapan sebelumnya
+
 ## Status penerimaan MySQL legacy, 19 November 2026 WIB
 
 | Menu atau kemampuan | Status | Bukti dan batas |

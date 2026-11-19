@@ -12,12 +12,13 @@ final class AdminController extends BaseController
 {
     public function index(): ResponseInterface
     {
-        $data = $this->dashboardData();
-        if ($data === null) {
+        $viewer = service('ewoIdentity')?->currentUser();
+        $dashboard = new DashboardRepository(Database::connect('ewo'));
+        if ($viewer === null || !$dashboard->supports($viewer)) {
             return $this->response->setStatusCode(403)->setBody('Dashboard statistics are unavailable for this account scope.');
         }
 
-        return $this->response->setBody(view('admin/dashboard', $data));
+        return redirect()->to(site_url('workspace'), 302)->withCookies();
     }
 
     public function workspaceDashboard(): ResponseInterface

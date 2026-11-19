@@ -6,7 +6,34 @@ if (PHP_SAPI !== 'cli' || !isset($argv[2])) {
     exit(1);
 }
 
-function runFixture(string $sqlitePath, string $action): void
+function buildReplyFixture(mysqli $fixture): void
+{
+    $root = dirname(__DIR__, 2);
+    require $root . '/vendor/codeigniter4/framework/system/Config/DotEnv.php';
+    (new CodeIgniter\Config\DotEnv($root))->load();
+    if (!in_array(getenv('database.ewo.hostname'), ['localhost', '127.0.0.1'], true)
+        || getenv('database.ewo.port') !== '3310' || getenv('database.ewo.database') !== 'eworeb') {
+        throw new RuntimeException('Unapproved legacy schema source.');
+    }
+    $source = new mysqli('127.0.0.1', getenv('database.ewo.username'), getenv('database.ewo.password'), 'eworeb', 3310);
+    $source->query('START TRANSACTION READ ONLY');
+    try {
+        foreach (['users','users_logs','roles_permissions','settings','general_settings','posts','posts_logs',
+            'corps','categories','locations','departments','post_images','post_audios','audios'] as $table) {
+            $ddl = $source->query('SHOW CREATE TABLE ' . $table)->fetch_row()[1];
+            if (!preg_match('/^CREATE TABLE \x60' . $table . '\x60 /', $ddl) || !str_contains($ddl, 'ENGINE=InnoDB')) {
+                throw new RuntimeException('Unexpected legacy table definition.');
+            }
+            $fixture->query(preg_replace('/ AUTO_INCREMENT=\d+/', '', $ddl));
+        }
+    } finally {
+        $source->rollback();
+        $source->close();
+    }
+}
+
+
+function runFixture(string $sqlitePath, string $action, ?string $orderId): void
 {
     $settings = json_decode((string) getenv('EWO_HTTP_MYSQL_FIXTURE'), true, 8, JSON_THROW_ON_ERROR);
     $port = (int) ($settings['port'] ?? 0);
@@ -21,8 +48,10 @@ function runFixture(string $sqlitePath, string $action): void
     }
 
     $initializer = $action === 'init';
-    $db = new mysqli('127.0.0.1', $initializer ? 'root' : 'ewo_fixture',
-        $initializer ? $settings['rootPassword'] : $settings['password'], '', $port);
+    $replies = ($settings['replies'] ?? false) === true;
+    $refuse = $replies && $action === 'refuse-reply-history';
+    $password = $initializer ? $settings['rootPassword'] : ($refuse ? getenv('EWO_REPLY_FIXTURE_ADMIN') : $settings['password']);
+    $db = new mysqli('127.0.0.1', $initializer || $refuse ? 'root' : 'ewo_fixture', $password, '', $port);
     if (realpath($db->query('SELECT @@datadir')->fetch_row()[0]) !== $dataDirectory) {
         throw new RuntimeException('MySQL fixture server identity mismatch.');
     }
@@ -31,10 +60,14 @@ function runFixture(string $sqlitePath, string $action): void
     if ($initializer) {
         $db->query('CREATE DATABASE ewo_fixture CHARACTER SET utf8mb4');
         $db->select_db('ewo_fixture');
-        $ddl = trim(file_get_contents(__DIR__ . '/mysql-fixture.sql'), ";\r\n");
-        foreach (explode(';', $ddl) as $statement) {
-            if (trim($statement) !== '') {
-                $db->query($statement);
+        if ($replies) {
+            buildReplyFixture($db);
+        } else {
+            $ddl = trim(file_get_contents(__DIR__ . '/mysql-fixture.sql'), ";\r\n");
+            foreach (explode(';', $ddl) as $statement) {
+                if (trim($statement) !== '') {
+                    $db->query($statement);
+                }
             }
         }
         $sqlite = new SQLite3($sqlitePath, SQLITE3_OPEN_READONLY);
@@ -43,10 +76,16 @@ function runFixture(string $sqlitePath, string $action): void
             $fixtureFields = match ($table) {
                 'posts' => '(id,category_id,role_id,corp_id,dept_id,user_id,visibility,status,is_scheduled)',
                 'users' => '(id,email,password,status,role,role_id,corp_id,dept_id,last_seen,ip_address)',
-                'roles_permissions' => '(role,admin_panel,add_post)',
+                                'roles_permissions' => $replies ? '(role,admin_panel,add_post,departments)' : '(role,admin_panel,add_post)',
+                'general_settings' => $replies ? '(id,timezone,site_lang)' : '',
+                'settings' => $replies ? '(lang_id,site_title,application_name)' : '',
+                'corps' => $replies ? '(id,name,corp_order)' : '',
                 default => '',
             };
             while ($row = $rows->fetchArray(SQLITE3_NUM)) {
+                if ($replies && $table === 'roles_permissions') {
+                    $row[] = 0;
+                }
                 $parameters = implode(',', array_fill(0, count($row), '?'));
 
                 $db->execute_query("INSERT INTO $table $fixtureFields VALUES ($parameters)", $row);
@@ -56,6 +95,16 @@ function runFixture(string $sqlitePath, string $action): void
         $db->query("UPDATE users SET username = SUBSTRING_INDEX(email, '@', 1), first_name = 'Fixture'");
         $db->query("UPDATE roles_permissions SET categories=1, locations=1, departments=1, users=1 WHERE role IN ('engineering','gm')");
         $db->query("UPDATE roles_permissions SET manage_all_posts=1 WHERE role='corpadmin'");
+        if ($replies) {
+            $db->query("UPDATE posts SET title='Fixture WO', location_id=1, summary='Original request',
+                image_default='uploads/images/fixture.png'");
+            $db->query("INSERT INTO post_images (post_id,image_default) SELECT id,'uploads/images/../outside.png' FROM posts");
+            $db->query("INSERT INTO categories (id,lang_id,name,parent_id,visibility) VALUES
+                (1,1,'New',0,2),(2,1,'Progress',0,1),(3,1,'Waiting',0,1),(4,1,'Closed',0,1),(5,1,'Pending',0,1),(6,1,'Reopen',0,0)");
+            $db->query("UPDATE roles_permissions SET manage_all_posts=1 WHERE role='engineering'");
+            $db->query("INSERT INTO users (id,username,email,role,role_id,corp_id,dept_id,status)
+                VALUES (250,'fixture-other-corp','other-corp@example.test','engineering',3,'2','10',1)");
+        }
         $fixturePassword = $settings['password'];
         if (!preg_match('/^[a-f0-9]{48}$/D', $fixturePassword)) {
             throw new RuntimeException('Invalid generated fixture password.');
@@ -64,10 +113,26 @@ function runFixture(string $sqlitePath, string $action): void
         $db->query("GRANT SELECT ON ewo_fixture.* TO 'ewo_fixture'@'localhost'");
         $db->query("GRANT UPDATE (last_seen, ip_address) ON ewo_fixture.users TO 'ewo_fixture'@'localhost'");
         $db->query("GRANT INSERT ON ewo_fixture.users_logs TO 'ewo_fixture'@'localhost'");
+        if ($replies) {
+            $db->query("GRANT UPDATE (category_id,assign_to,edited_by,edited_at) ON ewo_fixture.posts TO 'ewo_fixture'@'localhost'");
+            $db->query("GRANT INSERT ON ewo_fixture.posts_logs TO 'ewo_fixture'@'localhost'");
+        }
         return;
     }
 
     $db->select_db('ewo_fixture');
+    if ($action === 'refuse-reply-history' && $replies) {
+        $db->query("REVOKE INSERT ON ewo_fixture.posts_logs FROM 'ewo_fixture'@'localhost'");
+        return;
+    }
+    if ($action === 'reply-state' && $replies) {
+        $id = filter_var($orderId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($id === false) throw new InvalidArgumentException('Missing fixture Work Order ID.');
+        $order = $db->execute_query('SELECT * FROM posts WHERE id=?', [$id])->fetch_assoc();
+        $history = $db->execute_query('SELECT * FROM posts_logs WHERE post_id=? ORDER BY id', [$id])->fetch_all(MYSQLI_ASSOC);
+        echo json_encode(['order' => $order, 'history' => $history], JSON_THROW_ON_ERROR);
+        return;
+    }
     if ($action === 'activity-count') {
         echo $db->query('SELECT COUNT(*) FROM users_logs')->fetch_row()[0];
     } elseif ($action === 'snapshot') {
@@ -86,7 +151,7 @@ function runFixture(string $sqlitePath, string $action): void
 }
 
 try {
-    runFixture($argv[1], $argv[2]);
+    runFixture($argv[1], $argv[2], $argv[3] ?? null);
 } catch (Throwable $error) {
     fwrite(STDERR, 'Isolated MySQL fixture action failed (code ' . $error->getCode() . ").\n");
     exit(1);

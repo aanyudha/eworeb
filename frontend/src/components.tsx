@@ -30,9 +30,9 @@ export function Sidebar({ sections, onNavigate }: { sections: { path: string; la
   </aside>
 }
 
-export function Topbar({ viewer, search, onSearch, toggle, expanded, onLogout, classic }: {
+export function Topbar({ viewer, search, onSearch, toggle, expanded, onLogout }: {
   viewer?: DashboardData['viewer']; search: string; onSearch: (value: string) => void;
-  toggle: () => void; expanded: boolean; onLogout: () => void; classic: string;
+  toggle: () => void; expanded: boolean; onLogout: () => void;
 }) {
   const name = viewer?.name || viewer?.role || 'Account'
   return <header className="topbar">
@@ -41,15 +41,15 @@ export function Topbar({ viewer, search, onSearch, toggle, expanded, onLogout, c
     <div className="topbar-actions">
       <details className="menu"><summary className="icon-button" aria-label="Notifications"><Bell size={19} /></summary><div className="popover"><strong>Notifications</strong><p>Notifications are not available in this workspace.</p></div></details>
       <details className="menu"><summary className="profile" aria-label="Profile menu"><span className="avatar">{name[0].toUpperCase()}</span><span className="profile-name">{name}<small>{viewer?.role}</small></span><ChevronDown size={15} /></summary>
-        <div className="popover"><a href={classic}>Classic dashboard</a><button type="button" onClick={onLogout}><LogOut size={16} /> Sign out</button></div>
+        <div className="popover"><button type="button" onClick={onLogout}><LogOut size={16} /> Sign out</button></div>
       </details>
     </div>
   </header>
 }
 
-export function AppShell({ sections, viewer, search, onSearch, classic, onLogout, children }: {
+export function AppShell({ sections, viewer, search, onSearch, onLogout, children }: {
   sections: { path: string; label: string; preserveSearch?: boolean }[]; viewer?: DashboardData['viewer']; search: string;
-  onSearch: (value: string) => void; classic: string; onLogout: () => void; children: ReactNode;
+  onSearch: (value: string) => void; onLogout: () => void; children: ReactNode;
 }) {
   const [compact, setCompact] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -64,7 +64,7 @@ export function AppShell({ sections, viewer, search, onSearch, classic, onLogout
     {mobileOpen && <button className="scrim" aria-label="Close sidebar" onClick={() => setMobileOpen(false)} />}
     <Sidebar sections={sections} onNavigate={() => setMobileOpen(false)} />
     <div className="workspace">
-      <Topbar viewer={viewer} search={search} onSearch={onSearch} classic={classic} onLogout={onLogout}
+      <Topbar viewer={viewer} search={search} onSearch={onSearch} onLogout={onLogout}
         expanded={mobile ? mobileOpen : !compact} toggle={() => mobile ? setMobileOpen(v => !v) : setCompact(v => !v)} />
       <main className="content">{children}</main>
     </div>

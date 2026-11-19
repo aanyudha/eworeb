@@ -71,3 +71,8 @@
 # database.ewo.DBDriver = MySQLi
 # database.ewo.port = 3306
 # ewo.sessionKey =
+
+# Keep disabled on preserved legacy data. Enable only on an approved writable instance.
+# ewo.workOrderWrites = false
+# Private media directory containing images/ and audios/. Leave blank if unavailable.
+# ewo.workOrderMediaRoot =

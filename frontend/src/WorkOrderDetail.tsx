@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { ErrorState, LoadingState, PageHeader } from './components'
+import WorkOrderReply from './WorkOrderReply'
 
 type Detail = {
   item: {
@@ -32,7 +33,7 @@ type Detail = {
   }
 }
 
-export default function WorkOrderDetail({ endpoint, direction }: { endpoint: string; direction: 'incoming' | 'outgoing' }) {
+export default function WorkOrderDetail({ endpoint, direction, replyEnabled = false }: { endpoint: string; direction: 'incoming' | 'outgoing'; replyEnabled?: boolean }) {
   const { id } = useParams()
   const location = useLocation()
   const [params, setParams] = useSearchParams()
@@ -55,6 +56,17 @@ export default function WorkOrderDetail({ endpoint, direction }: { endpoint: str
   const backSearch = typeof location.state?.listSearch === 'string' ? location.state.listSearch : ''
   const item = data?.item
   const history = data?.history
+  const attachments = useQuery<{ items: { kind: string; id: number; label: string; download: string | null }[] }>({
+    queryKey: ['work-order-attachments', endpoint, direction, id],
+    enabled: Boolean(item),
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const response = await fetch(endpoint + '/' + direction + '/' + encodeURIComponent(id ?? '') + '/attachments',
+        { credentials: 'same-origin', signal })
+      if (!response.ok) throw new Error('Could not load attachments.')
+      return response.json()
+    },
+  })
 
   return <>
     <PageHeader title={'Work Order #' + id}>
@@ -63,6 +75,7 @@ export default function WorkOrderDetail({ endpoint, direction }: { endpoint: str
     {isPending && <LoadingState />}
     {error && <ErrorState message={error.message} action={<button type="button" onClick={() => void refetch()}>Retry</button>} />}
     {item && history && <>
+      {replyEnabled && id && <WorkOrderReply key={id} url={endpoint + '/incoming/' + encodeURIComponent(id) + '/reply'} />}
       <section className="panel">
         <header className="panel-head"><h2>{item.title}</h2></header>
         <div className="empty">
@@ -76,6 +89,16 @@ export default function WorkOrderDetail({ endpoint, direction }: { endpoint: str
             <dt>Replied</dt><dd>{item.edited_at || '—'}</dd>
           </dl>
         </div>
+      </section>
+      <section className="panel">
+        <header className="panel-head"><h2>Attachments</h2></header>
+        {attachments.isPending && <LoadingState />}
+        {attachments.error && <ErrorState message={attachments.error.message} />}
+        {attachments.data && (attachments.data.items.length ? <ul>
+          {attachments.data.items.map(file => <li key={file.kind + ':' + file.id}>
+            {file.download ? <a href={file.download}>{file.label}</a> : <span>{file.label} (unavailable)</span>}
+          </li>)}
+        </ul> : <p className="empty">No attachments.</p>)}
       </section>
       <section className="panel">
         <header className="panel-head"><h2>History</h2></header>

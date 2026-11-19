@@ -111,17 +111,34 @@ final class WorkOrderList
         $includesInitialEntry = (clone $history)->where(['log.assign_to' => null, 'log.edited_by' => null,
             'log.edited_at' => null])->countAllResults() > 0;
         $history->join('categories category', 'category.id = log.category_id')
-            ->join('users editor', 'editor.id = log.edited_by AND editor.corp_id = log.corp_id', $includesInitialEntry ? 'left' : 'inner')
+            ->join('users editor', 'editor.id = log.edited_by', $includesInitialEntry ? 'left' : 'inner')
             ->join('users assignee', 'assignee.id = log.assign_to AND assignee.corp_id = log.corp_id', 'left');
         $size = 25;
         $total = $history->countAllResults(false);
+        $editor = (int)$viewer['role_id'] === 1
+            ? 'editor.first_name AS editor_first, editor.last_name AS editor_last'
+            : 'CASE WHEN editor.corp_id = log.corp_id THEN editor.first_name END AS editor_first,
+                CASE WHEN editor.corp_id = log.corp_id THEN editor.last_name END AS editor_last';
         $rows = $history->select('log.id, log.summary, log.created_at, log.edited_at, category.name AS category,
-            editor.first_name AS editor_first, editor.last_name AS editor_last,
-            assignee.first_name AS assignee_first, assignee.last_name AS assignee_last')
+
+            assignee.first_name AS assignee_first, assignee.last_name AS assignee_last')->select($editor, false)
             ->orderBy('log.edited_at', 'DESC')->orderBy('log.id', 'DESC')
             ->get($size, ($page - 1) * $size)->getResultArray();
 
         return ['item' => $post, 'history' => ['items' => $rows, 'total' => $total, 'page' => $page, 'pageSize' => $size]];
+    }
+
+
+    public function scopedActive(array $viewer, string $direction, int $id, bool $lock = false): ?array
+    {
+        if (!in_array($direction, ['incoming', 'outgoing'], true) || !(new DashboardRepository($this->db))->supports($viewer)) {
+            throw new DomainException('Work order scope is unavailable.', 403);
+        }
+        $query = $this->db->table('posts p')->where(self::ACTIVE)->where('p.id', $id);
+        $this->applyDirectionalScope($query, $viewer, [], $direction === 'incoming');
+        return $lock
+            ? $this->db->query($query->getCompiledSelect() . ' FOR UPDATE')->getRowArray()
+            : $query->get()->getRowArray();
     }
 
 

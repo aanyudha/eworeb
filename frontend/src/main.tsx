@@ -13,7 +13,7 @@ import WorkOrderDetail from './WorkOrderDetail'
 import AdminDirectory from './AdminDirectory'
 
 const mount = document.getElementById('root')!
-const { workspace, dashboardApi, login, logout, originalDashboard, workOrdersApi, reportsApi, workOrderRole, knowledgeEditor, scheduleAccess } = mount.dataset
+const { workspace, dashboardApi, login, logout, workOrdersApi, reportsApi, workOrderRole, knowledgeEditor, scheduleAccess, replyAccess } = mount.dataset
 const directoryViews = JSON.parse(mount.dataset.directoryViews || '[]') as { path: string; label: string; endpoint: string }[]
 const queryClient = new QueryClient()
 const formats = new Intl.NumberFormat()
@@ -135,13 +135,13 @@ function Workspace() {
   const directoryLinks = directoryViews.map(({ path, label }) => ({ path, label, preserveSearch: false }))
   links.push(...directoryLinks)
   return <AppShell viewer={data?.viewer} sections={links}
-    search={search} onSearch={setSearch} classic={originalDashboard!} onLogout={() => setConfirm(true)}>
+    search={search} onSearch={setSearch} onLogout={() => setConfirm(true)}>
     <Routes>
       <Route path="/" element={dashboardContent} />
       {sections.map(section => <Route key={section.path} path={section.path} element={dashboardContent} />)}
       {workOrdersApi && <Route path="/work-orders/incoming" element={<WorkOrders endpoint={workOrdersApi} direction="incoming" role={Number(workOrderRole)} />} />}
       {workOrdersApi && <Route path="/work-orders/outgoing" element={<WorkOrders endpoint={workOrdersApi} direction="outgoing" role={Number(workOrderRole)} />} />}
-      {workOrdersApi && <Route path="/work-orders/incoming/:id" element={<WorkOrderDetail endpoint={workOrdersApi} direction="incoming" />} />}
+      {workOrdersApi && <Route path="/work-orders/incoming/:id" element={<WorkOrderDetail endpoint={workOrdersApi} direction="incoming" replyEnabled={replyAccess === 'enabled'} />} />}
       {workOrdersApi && <Route path="/work-orders/outgoing/:id" element={<WorkOrderDetail endpoint={workOrdersApi} direction="outgoing" />} />}
       {workOrdersApi && <Route path="/work-orders/drafts" element={<WorkOrders endpoint={workOrdersApi} direction="drafts" role={Number(workOrderRole)} />} />}
       {workOrdersApi && scheduleAccess === 'enabled' && <Route path="/work-orders/scheduled" element={<WorkOrders endpoint={workOrdersApi} direction="scheduled" role={Number(workOrderRole)} />} />}

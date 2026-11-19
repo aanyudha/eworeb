@@ -56,7 +56,7 @@ final class AuthController extends BaseController
                 return $this->databaseUnavailable();
             }
             if ($result === '') {
-                return redirect()->to(site_url('admin'), 302)->withCookies();
+                return redirect()->to(site_url('workspace'), 302)->withCookies();
             }
             $errors[] = $result;
         }

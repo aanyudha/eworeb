@@ -24,7 +24,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   if (mysql) {
     phpRun([mysqlFixture,db,'snapshot']);
   }
-  const audit=(action)=>phpRun([mysql?mysqlFixture:fixture,db,action]);
+  const audit=(action,...args)=>phpRun([mysql?mysqlFixture:fixture,db,action,...args]);
   const before=audit('snapshot');
   assert.match(before,/^[a-f0-9]{64}$/);
   const probe=net.createServer();
@@ -43,8 +43,15 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   ];
   const sessionPath=path.join(runtime,'sessions');
   fs.mkdirSync(sessionPath);
+  const media = path.join(runtime,'wo-media');
+  if (mysql?.replies) {
+    fs.mkdirSync(path.join(media,'images'),{recursive:true});
+    fs.writeFileSync(path.join(media,'images','fixture.png'), Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFcQAAAAASUVORK5CYII=', 'base64'));
+    fs.copyFileSync(path.join(media,'images','fixture.png'),path.join(media,'outside.png'));
+  }
   const fixtureEnv=[
-    'CI_ENVIRONMENT = production', 'app.baseURL = '+origin+'/',
+    'CI_ENVIRONMENT = production', 'app.baseURL = '+origin+'/', 'ewo.workOrderWrites = '+Boolean(mysql?.replies), 'ewo.workOrderMediaRoot = '+(mysql?.replies ? media.replaceAll('\\','/') : ''),
     ...connection, 'session.savePath = "'+sessionPath+'"',
     'ewo.sessionKey = '+require('node:crypto').randomBytes(32).toString('hex'), 'session.cookieName = '+sessionName,
     'knowledgebase.directory = "'+path.join(runtime,'kb')+'"',
@@ -54,12 +61,13 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const prepend=path.join(runtime,'load-fixture.php');
   fs.writeFileSync(prepend, '<?php require '+JSON.stringify(dotenv)+'; (new CodeIgniter\\Config\\DotEnv(__DIR__))->load();');
   fs.writeFileSync(path.join(runtime,'php.ini'), [
-    'extension_dir="'+ext+'"','extension=intl','extension=mbstring','extension=sqlite3', ...(mysql ? ['extension=mysqli'] : []),
+    'extension_dir="'+ext+'"','extension=intl','extension=mbstring','extension=sqlite3','extension=fileinfo', ...(mysql ? ['extension=mysqli'] : []),
     'auto_prepend_file="'+prepend+'"',
   ].join('\n'));
   const env={...process.env,PHPRC:runtime,PHP_INI_SCAN_DIR:''};
+  delete env.EWO_REPLY_FIXTURE_ADMIN;
   for (const key of Object.keys(env)) {
-    if (/^(?:CI_ENVIRONMENT|app[._]baseURL|database[._]ewo[._]|ewo[._]sessionKey|session[._]cookieName|knowledgebase[._](?:directory|backend)|database[._]kb[._]|session[._]savePath)/i.test(key)) delete env[key];
+    if (/^(?:CI_ENVIRONMENT|app[._]baseURL|database[._]ewo[._]|ewo[._](?:sessionKey|workOrderWrites|workOrderMediaRoot)|session[._]cookieName|knowledgebase[._](?:directory|backend)|database[._]kb[._]|session[._]savePath)/i.test(key)) delete env[key];
   }
   const diagnosis=execFileSync(php,['spark','ewo:diagnose'],{cwd:target,env:{...env,CI_ENVIRONMENT:'development'},encoding:'utf8'});
   assert.match(diagnosis,/database.ewo.database: set/);
@@ -112,22 +120,25 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   assert.equal(css.status,200);
   const blocked=await request('/auth_controller/admin_login_post',{email:'admin@example.test',password:'fixture-password'});
   assert.ok(blocked.status===403||blocked.status===302||blocked.status===303);
-  assert.notEqual(location(blocked),'/admin');
+  assert.notEqual(location(blocked),'/workspace');
   assert.equal(location(await login('admin@example.test','wrong')),'/admin/login');
   assert.match(await (await request('/admin/login')).text(),/Wrong username or password/);
   assert.equal(location(await login('blocked@example.test','fixture-password')),'/admin/login');
   assert.match(await (await request('/admin/login')).text(),/Your account has been banned/);
-  assert.equal(location(await login('staff@example.test','fixture-password')),'/admin');
+  assert.equal(location(await login('staff@example.test','fixture-password')),'/workspace');
   assert.equal((await request('/admin')).status,403);
   assert.equal((await request('/')).status,200);
   assert.equal((await request('/api/v1/admin/kb/articles')).status,403);
   assert.equal((await request('/workspace')).status,403);
   assert.equal((await request('/api/v1/dashboard?corpnya=2')).status,403);
   await request('/logout');
-  assert.equal(location(await login('admin@example.test','fixture-password')),'/admin');
+  assert.equal(location(await login('admin@example.test','fixture-password')),'/workspace');
   const dashboard=await request('/admin');
-  assert.equal(dashboard.status,200);
-  assert.match(await dashboard.text(),/Incoming Work Order/);
+  assert.equal(dashboard.status,302);
+  assert.equal(location(dashboard),'/workspace');
+  const workspace=await request('/workspace');
+  assert.equal(workspace.status,200);
+  assert.doesNotMatch(await workspace.text(),/data-original-dashboard/);
   const activity=audit('activity-count');
   const api=await request('/api/v1/dashboard');
   assert.equal(api.status,200);
@@ -147,24 +158,13 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   assert.equal(location(await request('/admin')),'/admin/login');
   console.log(audit('check'));
   const scoped=await login('other@example.test','fixture-password');
-  assert.equal(location(scoped),'/admin');
+  assert.equal(location(scoped),'/workspace');
   assert.equal((await request('/admin')).status,403);
   await request('/logout');
   if (process.env.EWO_LEGACY_SOURCE) {
     const scenarios=JSON.parse(phpRun(['-d','error_reporting=22527',path.join(__dirname,'legacy-dashboard.php'),process.env.EWO_LEGACY_SOURCE,db]));
     for (const [account,query,expected] of scenarios) {
-      assert.equal(location(await login(account+'@example.test','fixture-password')),'/admin');
-      const response=await request('/admin'+(query?'?'+query:''));
-      assert.equal(response.status,200);
-      const rendered={};
-      const html=await response.text();
-      for (const section of html.matchAll(/<section [^>]*id="(incoming|outgoing|recap)"[^>]*>([\s\S]*?)<\/section>/g)) {
-        rendered[section[1]]={};
-        for (const group of section[2].matchAll(/data-group="([^"]*)"[^>]*>([\s\S]*?)<\/dl>/g)) {
-          rendered[section[1]][group[1]]=Object.fromEntries([...group[2].matchAll(/<dt>(\w+)<\/dt>\s*<dd>(\d+)<\/dd>/g)].map(m=>[m[1],Number(m[2])]));
-        }
-      }
-      assert.deepEqual(rendered,expected,account+' dashboard '+query);
+      assert.equal(location(await login(account+'@example.test','fixture-password')),'/workspace');
       const api=await request('/api/v1/dashboard'+(query?'?'+query:''));
       assert.equal(api.status,200);
       const data=await api.json();
@@ -177,9 +177,11 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     }
     console.log('Dashboard parity: '+scenarios.length+' CI3 scenarios on identical synthetic rows');
   }
-  if (mysql) await require('./work-orders-assertions.cjs')(request,login,location);
-  if (process.env.EWO_TEST_BROWSER) await require('./browser.cjs')(process.env.EWO_TEST_BROWSER,runtime,origin);
+  if (mysql && !mysql.replies) await require('./work-orders-assertions.cjs')(request,login,location);
   assert.equal(audit('snapshot'),before,'fixture Work Order rows remain identical');
+  if (process.env.EWO_TEST_BROWSER) await require('./browser.cjs')(process.env.EWO_TEST_BROWSER,runtime,origin);
+  if (!mysql?.replies) assert.equal(audit('snapshot'),before,'fixture Work Order rows remain identical');
+  if (mysql?.replies) await require('./wo-reply-assertions.cjs')(request,login,location,audit);
   console.log('HTTP: guest, CSRF, login, invalid password, ban, permission, activity, logout PASS');
 })().catch(error=>{console.error(error);console.error(output);process.exitCode=1;}).finally(()=>{
   if(server?.pid && server.exitCode===null) {

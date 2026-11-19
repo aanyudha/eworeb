@@ -22,13 +22,13 @@
      data-reports-api="<?= esc(site_url('api/v1/reports'), 'attr') ?>"
      <?php endif; ?>
      data-schedule-access="<?= $scheduleAccess ? 'enabled' : 'disabled' ?>"
+     data-reply-access="<?= $replyAccess ? 'enabled' : 'disabled' ?>"
      data-work-order-role="<?= esc((string) $workOrderRole, 'attr') ?>"
      <?php endif; ?>
 
      data-directory-views="<?= esc(json_encode($directoryViews, JSON_THROW_ON_ERROR), 'attr') ?>"
      data-login="<?= esc(site_url('admin/login'), 'attr') ?>"
-     data-logout="<?= esc(site_url('logout'), 'attr') ?>"
-     data-original-dashboard="<?= esc(site_url('admin'), 'attr') ?>"></div>
+     data-logout="<?= esc(site_url('logout'), 'attr') ?>"></div>
 <script type="module" src="<?= esc(base_url('workspace-assets/' . $entry['file']), 'attr') ?>"></script>
 </body>
 </html>
