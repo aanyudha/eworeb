@@ -6,6 +6,6 @@ export default defineConfig({
     outDir: '../public/workspace-assets',
     emptyOutDir: true,
     manifest: 'manifest.json',
-    rollupOptions: { input: 'src/main.tsx' },
+    rollupOptions: { input: ['src/main.tsx', 'src/knowledge.tsx'] },
   },
 })

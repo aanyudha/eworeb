@@ -126,3 +126,5 @@ _modules/*
 /phpunit.xml
 
 /public/workspace-assets/
+
+/writable/knowledgebase/

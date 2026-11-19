@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\HTTP\ResponseInterface;
 
 final class AuthController extends BaseController
@@ -11,13 +12,18 @@ final class AuthController extends BaseController
     public function adminLogin(): ResponseInterface
     {
         $identity = service('ewoIdentity');
-        $user = $identity?->currentUser();
-        if ($user !== null) {
-            $identity->recordActivity($user, $this->request->getIPAddress());
+        try {
+            $user = $identity?->currentUser();
+            if ($user !== null) {
+                $identity->recordActivity($user, $this->request->getIPAddress());
+            }
+            $settings = $identity?->siteSettings();
+        } catch (DatabaseException) {
+            return $this->databaseUnavailable();
         }
 
         return $this->response->setBody(view('admin/login', [
-            'settings' => $identity?->siteSettings(),
+            'settings' => $settings,
             'messages' => session()->getFlashdata('messages') ?? [],
             'email'    => session()->getFlashdata('old_email') ?? '',
         ]));
@@ -44,7 +50,11 @@ final class AuthController extends BaseController
         }
 
         if ($errors === []) {
-            $result = $identity->authenticate($email, $password, $this->request->getIPAddress());
+            try {
+                $result = $identity->authenticate($email, $password, $this->request->getIPAddress());
+            } catch (DatabaseException) {
+                return $this->databaseUnavailable();
+            }
             if ($result === '') {
                 return redirect()->to(site_url('admin'), 302)->withCookies();
             }
@@ -54,6 +64,12 @@ final class AuthController extends BaseController
         session()->setFlashdata(['messages' => $errors, 'old_email' => $email]);
 
         return redirect()->to(site_url('admin/login'), 302)->withCookies();
+    }
+
+    private function databaseUnavailable(): ResponseInterface
+    {
+        return $this->response->setStatusCode(503)
+            ->setBody('EWO database is unavailable or incompatible. Run php spark ewo:diagnose locally.');
     }
 
     public function logout(): ResponseInterface

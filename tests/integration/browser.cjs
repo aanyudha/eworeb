@@ -29,7 +29,7 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
     async function evaluate(expression) {
         const relative=expression.replaceAll('location.pathname','location.pathname.slice('+prefix.length+')');
         const message=await send('Runtime.evaluate',{expression:relative,returnByValue:true});
-        if (message.exceptionDetails) throw Error(message.exceptionDetails.text);
+        if (message.exceptionDetails) throw Error(message.exceptionDetails.exception?.description ?? message.exceptionDetails.text);
         return message.result.value;
     }
     try {
@@ -102,12 +102,54 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
             await until(()=>evaluate("document.querySelector('.shell').classList.contains('mobile-open')"));
             await evaluate("document.querySelector('.scrim').click()");
         }
+        await send('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});
+        await evaluate("[...document.querySelectorAll('nav a')].find(a=>a.textContent==='Knowledge Base').click()");
+        await until(()=>evaluate("document.querySelector('h1')?.innerText==='Knowledge Base' && document.querySelector('.knowledge-tabs')!==null"));
+        await until(()=>evaluate("[...document.querySelectorAll('button')].some(b=>b.textContent.includes('New draft'))"));
+        await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent.includes('New draft')).click()");
+        await until(()=>evaluate("document.querySelector('.knowledge-form')!==null"));
+        await evaluate("const form=document.querySelector('.knowledge-form'); form.elements.title.value='Browser editor fixture'; form.elements.slug.value='browser-editor-fixture'; form.elements.summary.value='Review this fixture draft.'; form.elements.resolution_steps.value='Record the test result.'; form.elements.visibility.value='public'; form.requestSubmit();");
+        await until(()=>evaluate("document.querySelector('.knowledge-review h3')?.innerText==='Browser editor fixture'"));
+        await evaluate("[...document.querySelectorAll('.knowledge-review button')].find(b=>b.textContent.trim()==='Publish').click()");
+        await evaluate("[...document.querySelectorAll('.knowledge-confirm button')].find(b=>b.textContent.includes('Confirm publish')).click()");
+        await until(()=>evaluate("document.querySelector('.knowledge-review .panel-head span')?.innerText.includes('published')"));
+        await evaluate("[...document.querySelectorAll('.knowledge-review button')].find(b=>b.textContent.includes('Withdraw publication')).click()");
+        await evaluate("[...document.querySelectorAll('.knowledge-confirm button')].find(b=>b.textContent.includes('Confirm withdraw')).click()");
+        await until(()=>evaluate("document.querySelector('.knowledge-review .panel-head span')?.innerText.includes('draft')"));
+        console.log('Chrome: admin draft, review, publish, and withdraw passed');
         await evaluate("document.querySelector('summary[aria-label=\"Profile menu\"]').click(); [...document.querySelectorAll('.popover button')].find(b=>b.textContent.includes('Sign out')).click()");
         assert.equal(await evaluate("document.querySelector('dialog h2').innerText"),'Sign out?');
         await evaluate("document.querySelector('dialog button.primary').click()");
         await until(()=>evaluate("location.pathname==='/admin/login' && document.querySelector('h1')?.innerText==='Login'"));
         assert.deepEqual(errors,[]);
         console.log('Chrome: React dashboard, search, sort, drawer, filters, SPA history, deep link, refresh, tablet/mobile, and logout passed');
+        await send('Page.navigate',{url:origin+'/'});
+        await until(()=>evaluate("document.querySelector('h1')?.innerText==='How can we help you?' && document.querySelectorAll('.kb-category').length===4 && document.querySelectorAll('.kb-result').length===2"));
+        await evaluate("window.__kbDocument='same'; const field=document.querySelector('.kb-search input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(field,'patch-cable'); field.dispatchEvent(new Event('input',{bubbles:true}));");
+        await evaluate("document.querySelector('.kb-search').requestSubmit()");
+        await until(()=>evaluate("location.search.includes('q=patch-cable') && document.querySelectorAll('.kb-result').length===1"));
+        assert.equal(await evaluate("window.__kbDocument"),'same');
+        await evaluate("document.querySelector('.kb-result').click()");
+        await until(()=>evaluate("document.querySelector('h1')?.innerText==='Fixture network guide'"));
+        assert.ok(await evaluate("document.querySelector('.kb-article-head p').innerText.includes('<em>plain text</em>') && !document.querySelector('.kb-article-head p em')"));
+        assert.equal(await evaluate("document.querySelectorAll('.kb-related .kb-result').length"),1);
+        await evaluate("history.back()");
+        await until(()=>evaluate("location.search.includes('q=patch-cable') && document.querySelector('h1')?.innerText==='Knowledge Base'"));
+        await evaluate("history.forward()");
+        await until(()=>evaluate("document.querySelector('h1')?.innerText==='Fixture network guide'"));
+        await send('Page.reload');
+        await until(()=>evaluate("document.readyState==='complete' && document.querySelector('h1')?.innerText==='Fixture network guide'"));
+        await send('Page.navigate',{url:origin+'/kb?category=engineering'});
+        await until(()=>evaluate("document.querySelector('h1')?.innerText==='Knowledge Base' && document.querySelectorAll('.kb-result').length===1"));
+        assert.equal(await evaluate("document.querySelector('.kb-result h3').innerText"),'Related fixture');
+        await send('Page.navigate',{url:origin+'/kb?q=unmatched-fixture-key'});
+        await until(()=>evaluate("document.querySelector('.kb-status h2')?.innerText==='No matching solutions'"));
+        for(const width of [1280,820,390]) {
+            await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<900});
+            await until(()=>evaluate("document.documentElement.clientWidth==="+width+" && document.documentElement.scrollWidth<=document.documentElement.clientWidth"));
+        }
+        assert.deepEqual(errors,[]);
+        console.log('Chrome: guest homepage, search, category filtering, article detail, safe text, history, refresh, and three viewports passed');
     } finally {
         if(socket?.readyState===WebSocket.OPEN) {
             await Promise.race([send('Browser.close'),sleep(1000)]).catch(()=>{});

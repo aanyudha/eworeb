@@ -27,9 +27,10 @@ final class AdminAccess implements FilterInterface
         }
 
         foreach ($permissions as $permission) {
-            if ($permission !== 'json' && !$identity->allows($user, $permission)) {
+            if ($permission !== 'json' && ($permission === 'administrator'
+                ? $user['role'] !== 'admin' : !$identity->allows($user, $permission))) {
                 return $json
-                    ? $this->reject(403, 'You do not have permission to view the dashboard.')
+                    ? $this->reject(403, 'You do not have permission to access this resource.')
                     : service('response')->setStatusCode(403)->setBody('Forbidden');
             }
         }

@@ -7,6 +7,7 @@ import {
   type Counts, type DashboardData, type Filters, type StatRow,
 } from './components'
 import './style.css'
+import KnowledgeAdmin from './KnowledgeAdmin'
 
 const mount = document.getElementById('root')!
 const { workspace, dashboardApi, login, logout, originalDashboard } = mount.dataset
@@ -106,7 +107,10 @@ function Workspace() {
   }
   const page = data ? <DashboardPage data={data} mode={mode} search={search} onApply={apply} onDetails={setActiveRow} /> : null
   const readableError = error instanceof DashboardError ? error.message : 'Request failed. Check your connection and try again.'
-  return <AppShell viewer={data?.viewer} sections={sections.filter(section => data?.summary[section.key])}
+  const links = sections.filter(section => data?.summary[section.key]).map(({path, label}) => ({ path: String(path), label: String(label) }))
+  const knowledgeAdmin = data?.viewer.role === 'admin'
+  if (knowledgeAdmin) links.push({ path: '/knowledge', label: 'Knowledge Base' })
+  return <AppShell viewer={data?.viewer} sections={links}
     search={search} onSearch={setSearch} classic={originalDashboard!} onLogout={() => setConfirm(true)}>
     {isPending && <><PageHeader title="Dashboard" /><LoadingState /></>}
     {error && <><PageHeader title="Dashboard" /><ErrorState message={readableError}
@@ -114,6 +118,7 @@ function Workspace() {
     {page && <Routes>
       <Route path="/" element={page} />
       {sections.map(section => <Route key={section.path} path={section.path} element={page} />)}
+      {knowledgeAdmin && <Route path="/knowledge/*" element={<KnowledgeAdmin />} />}
       <Route path="*" element={<ErrorState message="This workspace page does not exist." action={<NavLink to="/">Return to dashboard</NavLink>} />} />
     </Routes>}
     {activeRow && <DetailDrawer row={activeRow} onClose={() => setActiveRow(null)} />}

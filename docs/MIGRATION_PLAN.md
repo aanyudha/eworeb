@@ -319,3 +319,9 @@ TanStack Query membaca `GET /api/v1/dashboard` dari origin yang sama. Guard memv
 TanStack Table memakai agregat dashboard untuk pencarian, sort, pagination dan drawer. Kartu serta grafik menampilkan angka yang sama dengan repository. Navigasi utama hanya menyediakan halaman yang didukung untuk akun tersebut. Menu notifikasi menunjukkan bahwa integrasi notifikasi belum tersedia, tanpa membuat notifikasi fiktif.
 
 Tahap selanjutnya tetap transaksi Work Order, Reports In/Out dengan `add_post`, lalu master data. Scope dan kompatibilitas DB harus dituntaskan sebelum menambahkan transaksi. Perbedaan rekap IT Waiting dan atribusi departemen admin dari tahap sebelumnya tetap berlaku.
+
+## Public Knowledge Center and database diagnostics
+
+Public routes `/`, `/kb`, and `/kb/{slug}` use a separate React entry. The workspace and classic admin routes stay protected. Public content is file-backed, with validated public/published projection and related links resolved through the same visibility rule. Staff management lives in the current React workspace and uses the existing admin role and CI4 CSRF. Publish or withdraw only after explicit admin action.
+
+Use the CLI diagnostic to check effective configuration and local schema metadata before provisioning an isolated database. No automatic schema selection or data migration is part of this phase. [Knowledge Center](KNOWLEDGE_BASE.md) · [Database diagnostics](DATABASE_DIAGNOSTICS.md)

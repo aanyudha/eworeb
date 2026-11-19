@@ -12,6 +12,8 @@
 <body>
 <div id="root"
      data-workspace="<?= esc(site_url('workspace'), 'attr') ?>"
+     data-knowledge-admin="<?= esc(site_url('api/v1/admin/kb/articles'), 'attr') ?>"
+     data-knowledge-home="<?= esc(site_url('kb'), 'attr') ?>"
      data-dashboard-api="<?= esc(site_url('api/v1/dashboard'), 'attr') ?>"
      data-login="<?= esc(site_url('admin/login'), 'attr') ?>"
      data-logout="<?= esc(site_url('logout'), 'attr') ?>"

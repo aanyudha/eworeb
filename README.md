@@ -67,3 +67,34 @@ Additionally, make sure that the following extensions are enabled in your PHP:
 - json (enabled by default - don't turn it off)
 - [mysqlnd](http://php.net/manual/en/mysqlnd.install.php) if you plan to use MySQL
 - [libcurl](http://php.net/manual/en/curl.requirements.php) if you plan to use the HTTP\CURLRequest library
+
+## Environment Configuration & Session Key Generation
+
+EWO Reborn uses `ewo.sessionKey` to validate authentication sessions. Run in PowerShell:
+
+```powershell
+C:\xampp8512\php\php.exe -r "echo bin2hex(random_bytes(32)), PHP_EOL;"
+```
+
+This generates 64 hexadecimal characters from 256 bits of randomness. Copy the result into `.env` in the project root. Use a different key for each environment and retain it across restarts. Rotating it can invalidate active sessions. Keep the real key out of Git, source code, logs, and documentation.
+
+Authentication uses the dedicated `database.ewo` group. Example for an approved local database:
+
+```ini
+database.ewo.hostname = 127.0.0.1
+database.ewo.database = NAMA_DATABASE
+database.ewo.username = USER_DATABASE
+database.ewo.password = PASSWORD_DATABASE
+database.ewo.DBDriver = MySQLi
+database.ewo.port = 3310
+
+ewo.sessionKey = "HASIL_RANDOM_BYTES_32"
+```
+
+For `EWO authentication is not configured.`, check that the root file is named `.env`, that the lines are uncommented, and that the connection keys start with `database.ewo`. Diagnose the effective settings without printing secrets:
+
+```powershell
+C:\xampp8512\php\php.exe spark ewo:diagnose
+```
+
+See [database diagnostics](docs/DATABASE_DIAGNOSTICS.md) and the [Knowledge Center guide](docs/KNOWLEDGE_BASE.md).

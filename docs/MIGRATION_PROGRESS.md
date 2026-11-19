@@ -1,5 +1,18 @@
 # Progres migrasi EWO
 
+## Knowledge Center dan diagnosis database, 19 November 2026 WIB
+
+- Root / sekarang membuka Knowledge Center publik. /kb dan /kb/{slug} memakai entry React/Vite tersendiri. Admin klasik, workspace, dashboard API dan autentikasi existing dipertahankan. Workspace admin mendapat editor artikel dengan draft, review, publikasi manual, penarikan, dan daftar kategori.
+- File baru utama. app/Commands/EwoDiagnose.php, app/Config/KnowledgeBase.php, KnowledgeController dan KnowledgeAdminController, KnowledgeBaseRepository, LocalDebugToolbar, view knowledge/index.php, entry knowledge.tsx, KnowledgeAdmin.tsx, CSS dan pengujian Knowledge Base.
+- Perubahan integrasi. Routes, filter AdminAccess, pengaturan toolbar lokal, allowedHostnames localhost, respons 503 login, konfigurasi build multi-entry, workspace navigation, .gitignore, README dan dokumen migrasi. Tidak ada penggantian autentikasi atau perubahan query WO.
+- spark ewo:diagnose --inventory mengonfirmasi endpoint MySQL default loopback TCP 3310 dapat diakses baca-saja. Grup EWO efektif belum memiliki database dan username, walaupun key 64-hex sudah tersedia. Skema eworeb kekurangan dept_id pada users dan corp_id, dept_id, is_scheduled pada posts. ewohotel_tentrem cocok pada metadata tujuh tabel wajib. Persetujuan sebagai salinan uji masih diperlukan, sehingga database aplikasi tidak dialihkan.
+- Apache 8.5.12 menunjukkan 503 missing configuration pada POST CSRF-valid dengan kredensial kosong dan menyajikan portal publik tanpa sesi. Login dan logout sukses pada SQLite fixture dengan grup EWO lengkap. Pemeriksaan metadata MySQL bukan pengujian login MySQL.
+- Regresi fixture mencakup validasi query dan slug, 404 draft/internal/unknown, izin guest dan role non-admin, CSRF, draft/edit/publish/withdraw, konflik revisi, proyeksi related links, teks aman, pencarian, kategori, detail, back/forward, refresh, dan 1280/820/390 px. Enam skenario dashboard tetap cocok dengan CI3 dan isi 134 baris WO fixture tetap identik. Chrome lulus pengujian portal serta editor.
+- Validasi akhir lulus pada PHP 8.5.12 untuk lint 14 file dan PHPUnit 7 tes dengan 32 assertion. TypeScript dan build Vite lulus. Chrome guest pada Apache aktif merender katalog kosong dan aset dari origin localhost. Route detail yang tidak ditemukan menghasilkan 404 tanpa toolbar.
+- Penulisan fixture terisolasi di folder sementara. Katalog live tetap kosong. Pemeriksaan Git hanya status, diff --check, dan diff --stat. Tidak ada perubahan skema, import SQL, deployment, atau perubahan state Git.
+
+Panduan operasi lokal ada di [Knowledge Base](KNOWLEDGE_BASE.md) dan [Database Diagnostics](DATABASE_DIAGNOSTICS.md).
+
 ## Login database dan workspace React, 19 November 2026 WIB
 
 ### Pemeriksaan database dan status login
