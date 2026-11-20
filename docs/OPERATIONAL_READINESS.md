@@ -18,7 +18,7 @@ Gunakan corpus sintetis dan instance MySQL terisolasi untuk setiap langkah tulis
 - Dashboard, Incoming, Outgoing, Drafts, detail dan histori, direktori, serta profil sendiri tersedia untuk penerimaan baca-saja sesuai izin.
 - Reports In dan Reports Out memuat data aktual dengan izin admin_panel dan add_post. Total serta paginasi mengikuti query arah dan scope yang sama. Scope non-admin berasal dari sesi. Pada skema tanpa posts.subcategory_id, kolom kategori memuat kategori utama dan label “Subcategory unavailable”. Layar, PDF A3 dan XLSX memakai array sel yang sama untuk halaman hasil saat ini. Jasper CI3 dan paritas laporan penuh berada di luar hasil ini.
 - Root arsip CI3 dipasang sebagai sumber baca-saja melalui .env lokal. Resolver menemukan 1.924 dari 17.469 referensi gambar utama dan 302 dari 3.126 referensi gambar tambahan. Detail WO hanya mengunduh file yang terkait pada WO dalam scope. Lima referensi avatar dan kedua referensi branding memiliki file lokal dalam audit. MIME, root dan path tetap diperiksa sebelum penyajian. Lengkapi arsip di lokasi privat yang disetujui untuk memenuhi referensi sisanya.
-- Knowledge Center dan editor memakai JSON existing. MySQL KB belum memiliki tabel legacy yang terbukti sesuai secara semantik. Hasil fixture MySQL KB sebelumnya tetap menjadi referensi.
+- Knowledge Center dan editor memakai `kb_articles` di MySQL pengembangan TCP 3310 setelah parity, backup dan restore lulus. Katalog awal kosong. Pengujian penulisan admin memakai fixture dan smoke pengembangan bersifat baca-saja. [Status cutover dan rollback KB](KNOWLEDGE_BASE_MYSQL.md#cutover-pengembangan-20-november-2026-wib).
 
 ## Sakelar penulisan
 

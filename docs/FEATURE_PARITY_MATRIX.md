@@ -24,7 +24,7 @@
 | Reports In dan Reports Out | Read-only working with limitation | Baris dan scope dari data aktual. Penanda subkategori tidak tersedia sama pada tabel, PDF, dan XLSX. Hasil ini tidak menetapkan paritas lengkap dengan Jasper. |
 | Edit gallery dan ordered list | Blocked by schema | Tabel relasi item CI3 tidak tersedia pada schema aktif. |
 | Edit metadata audio dan video | Not yet migrated | Source CI3 memiliki view. Jalur lokal memakai post_type yang seluruhnya post. Detail audio baru sebatas lampiran. |
-| Knowledge Center dan editor | MySQL verified in isolation, development cutover pending | `kb_articles` terpisah dengan visibilitas, revisi, draft, publikasi, relasi terurut dan URL existing. Pengembangan tetap JSON sambil menunggu persetujuan eksplisit yang diminta auto-review. |
+| Knowledge Center dan editor | MySQL active on development TCP 3310 | `kb_articles` terpisah. Parity awal 0 artikel, pembacaan MySQL terverifikasi di Apache pengembangan. Alur admin, draft, publikasi, relasi terurut, konflik revisi, visibilitas dan URL positif diuji pada fixture. |
 
 Operasi tulis di atas diuji pada MySQL terisolasi. Hanya sakelar Create aktif pada pengembangan `eworeb` TCP 3310.
 

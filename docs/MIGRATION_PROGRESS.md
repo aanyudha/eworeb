@@ -1,5 +1,11 @@
 # Progres migrasi EWO
 
+## Cutover Knowledge Base MySQL pengembangan, 20 November 2026 WIB
+
+- Backup `eworeb` terbaru lulus restore pada MySQL terisolasi. Setelah jumlah dan fingerprint katalog sumber cocok, `kb_articles` menjadi satu-satunya tabel baru dan `.env` lokal beralih ke `knowledgebase.backend = mysql`. Katalog JSON efektif berisi nol artikel. Importer menghasilkan nol baris; manifest sumber merekam file yang absen.
+- Fingerprint dan definisi seluruh 18 tabel legacy tetap identik, termasuk 19.813 WO, 43.610 histori, dan 444.040 record legacy total. Apache pengembangan membaca tabel MySQL. Chrome lulus untuk homepage, pencarian kosong dan pemeriksaan desktop/mobile. [Bukti cutover dan pemulihan](KNOWLEDGE_BASE_MYSQL.md#cutover-pengembangan-20-november-2026-wib).
+- Regresi editor, login/logout, CSRF, konflik revisi, draft/publish/withdraw, artikel publik, internal dan related articles lulus pada Apache, Chrome, dan MySQL disposable. Penyimpanan MySQL dikonfirmasi tanpa fallback JSON. Pengujian tulis tetap di fixture. PHP lint, PHPUnit 9 tes/35 assertions, TypeScript dan Vite lulus.
+
 ## Media Create, jadwal terisolasi dan Knowledge Base MySQL, 20 November 2026 WIB
 
 - Form Create existing menyediakan pemilih gambar utama/tambahan dan unggahan katalog ketika penyimpanan privat tersedia. Referensi legacy ikut pada WO, histori awal dan post_images. Chrome menguji unggahan, pemilihan, Draft, Publish, Outgoing dan detail/histori. Fixture menguji penolakan lintas corporation, MIME, CSRF dan rollback metadata/file. Pengembangan belum memiliki root unggahan privat. Kontrol subscriber CI3 ada di blok komentar dan dependensi newsletter tidak tersedia.
