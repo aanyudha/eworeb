@@ -6,7 +6,7 @@ if (PHP_SAPI !== 'cli' || !isset($argv[2])) {
     exit(1);
 }
 
-function buildReplyFixture(mysqli $fixture): void
+function buildLegacyFixture(mysqli $fixture, bool $create): void
 {
     $root = dirname(__DIR__, 2);
     require $root . '/vendor/codeigniter4/framework/system/Config/DotEnv.php';
@@ -18,8 +18,10 @@ function buildReplyFixture(mysqli $fixture): void
     $source = new mysqli('127.0.0.1', getenv('database.ewo.username'), getenv('database.ewo.password'), 'eworeb', 3310);
     $source->query('START TRANSACTION READ ONLY');
     try {
-        foreach (['users','users_logs','roles_permissions','settings','general_settings','posts','posts_logs',
-            'corps','categories','locations','departments','languages','visual_settings','post_images','post_audios','audios'] as $table) {
+        $tables = ['users','users_logs','roles_permissions','settings','general_settings','posts','posts_logs',
+            'corps','categories','locations','departments','languages','visual_settings','post_images','post_audios','audios'];
+        if ($create) $tables[] = 'images';
+        foreach ($tables as $table) {
             $ddl = $source->query('SHOW CREATE TABLE ' . $table)->fetch_row()[1];
             if (!preg_match('/^CREATE TABLE \x60' . $table . '\x60 /', $ddl) || !str_contains($ddl, 'ENGINE=InnoDB')) {
                 throw new RuntimeException('Unexpected legacy table definition.');
@@ -49,7 +51,10 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
 
     $initializer = $action === 'init';
     $replies = ($settings['replies'] ?? false) === true;
-    $refuse = $replies && in_array($action, ['refuse-reply-history', 'refuse-audio-link', 'refuse-settings-timezone', 'require-email-verification', 'refuse-avatar'], true);
+    $create = ($settings['create'] ?? false) === true;
+    $legacy = $replies || $create;
+    $refuse = ($replies && in_array($action, ['refuse-reply-history', 'refuse-audio-link', 'refuse-settings-timezone', 'require-email-verification', 'refuse-avatar'], true))
+        || ($create && in_array($action, ['refuse-create-history', 'restore-create-history', 'refuse-create-image', 'incompatible-create-column'], true));
     $password = $initializer ? $settings['rootPassword'] : ($refuse ? getenv('EWO_REPLY_FIXTURE_ADMIN') : $settings['password']);
     $db = new mysqli('127.0.0.1', $initializer || $refuse ? 'root' : 'ewo_fixture', $password, '', $port);
     if (realpath($db->query('SELECT @@datadir')->fetch_row()[0]) !== $dataDirectory) {
@@ -60,8 +65,8 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
     if ($initializer) {
         $db->query('CREATE DATABASE ewo_fixture CHARACTER SET utf8mb4');
         $db->select_db('ewo_fixture');
-        if ($replies) {
-            buildReplyFixture($db);
+        if ($legacy) {
+            buildLegacyFixture($db, $create);
         } else {
             $ddl = trim(file_get_contents(__DIR__ . '/mysql-fixture.sql'), ";\r\n");
             foreach (explode(';', $ddl) as $statement) {
@@ -76,14 +81,14 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
             $fixtureFields = match ($table) {
                 'posts' => '(id,category_id,role_id,corp_id,dept_id,user_id,visibility,status,is_scheduled)',
                 'users' => '(id,email,password,status,role,role_id,corp_id,dept_id,last_seen,ip_address)',
-                                'roles_permissions' => $replies ? '(role,admin_panel,add_post,departments)' : '(role,admin_panel,add_post)',
-                'general_settings' => $replies ? '(id,timezone,site_lang)' : '',
-                'settings' => $replies ? '(lang_id,site_title,application_name)' : '',
-                'corps' => $replies ? '(id,name,corp_order)' : '',
+                'roles_permissions' => $legacy ? '(role,admin_panel,add_post,departments)' : '(role,admin_panel,add_post)',
+                'general_settings' => $legacy ? '(id,timezone,site_lang)' : '',
+                'settings' => $legacy ? '(lang_id,site_title,application_name)' : '',
+                'corps' => $legacy ? '(id,name,corp_order)' : '',
                 default => '',
             };
             while ($row = $rows->fetchArray(SQLITE3_NUM)) {
-                if ($replies && $table === 'roles_permissions') {
+                if ($legacy && $table === 'roles_permissions') {
                     $row[] = 0;
                 }
                 $parameters = implode(',', array_fill(0, count($row), '?'));
@@ -96,11 +101,36 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
         $db->query("UPDATE roles_permissions SET categories=1, locations=1, departments=1, users=1 WHERE role IN ('engineering','gm')");
         $db->query("UPDATE roles_permissions SET manage_all_posts=1 WHERE role='corpadmin'");
         if (!$replies) {
-            $db->query("INSERT INTO roles_permissions (role,role_name,admin_panel,add_post) VALUES
-                ('author','Engineering',1,0),('author1','IT',1,0),('author2','Housekeeping',1,0),('author3','Other destination',1,0)");
+            $db->query("INSERT INTO roles_permissions (role,role_name,admin_panel,add_post,departments) VALUES
+                ('author','Engineering',1,0,0),('author1','IT',1,0,0),('author2','Housekeeping',1,0,0),('author3','Other destination',1,0,0)");
             $db->query("INSERT INTO users (id,username,email,password,status,role,role_id,corp_id,dept_id)
                 SELECT 250,'no-add-post','no-add-post@example.test',u.password,1,r.role,r.id,'1','10'
                 FROM users u JOIN roles_permissions r ON r.role='author3' WHERE u.id=1");
+        }
+        if ($create) {
+            $db->query('INSERT INTO posts_logs (post_id,is_scheduled) VALUES (1,1)');
+            foreach (['posts', 'posts_logs'] as $table) {
+                $original = $db->query("SELECT * FROM $table ORDER BY id")->fetch_all(MYSQLI_ASSOC);
+                $db->query("ALTER TABLE $table ADD COLUMN published_at DATETIME NULL DEFAULT NULL");
+                $rows = $db->query("SELECT * FROM $table ORDER BY id")->fetch_all(MYSQLI_ASSOC);
+                foreach ($rows as &$row) {
+                    if ($row['published_at'] !== null) throw new RuntimeException('Proposed DDL assigned a historical publication date.');
+                    unset($row['published_at']);
+                }
+                unset($row);
+                if ($original !== $rows) throw new RuntimeException('Proposed DDL changed historical fields.');
+            }
+            $db->query("INSERT INTO categories (id,lang_id,name,parent_id,visibility) VALUES (1,1,'New',0,2)");
+            $db->query("INSERT INTO departments (id,lang_id,name,corp_id,parent_id,color)
+                VALUES (10,1,'Fixture department',1,0,'#ffffff'),(20,1,'Foreign department',2,0,'#ffffff')");
+            $db->query("INSERT INTO locations (id,lang_id,name,corp_id,parent_id,color) VALUES
+                (1,1,'Fixture location',1,0,'#ffffff'),(2,1,'Other location',2,0,'#ffffff'),
+                (3,1,'Fixture room',1,1,'#ffffff'),(4,1,'Wrong corporation room',2,1,'#ffffff')");
+            $db->query("UPDATE general_settings SET email_verification=0,file_manager_show_files=1 WHERE id=1");
+            $db->query("INSERT INTO images (id,user_id,image_default,image_big) VALUES
+                (1,4,'uploads/images/fixture-1.jpg','uploads/images/fixture-1.jpg'),
+                (2,4,'uploads/images/fixture-2.jpg','uploads/images/fixture-2.jpg'),
+                (3,7,'uploads/images/fixture-3.jpg','uploads/images/fixture-3.jpg')");
         }
         if ($replies) {
             $db->query("UPDATE posts SET title='Fixture WO', location_id=1, summary='Original request',
@@ -133,6 +163,11 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
         $db->query("GRANT SELECT ON ewo_fixture.* TO 'ewo_fixture'@'localhost'");
         $db->query("GRANT UPDATE (last_seen, ip_address) ON ewo_fixture.users TO 'ewo_fixture'@'localhost'");
         $db->query("GRANT INSERT ON ewo_fixture.users_logs TO 'ewo_fixture'@'localhost'");
+        if ($create) {
+            foreach (['posts', 'posts_logs', 'post_images'] as $table) {
+                $db->query("GRANT INSERT ON ewo_fixture.$table TO 'ewo_fixture'@'localhost'");
+            }
+        }
         if ($replies) {
             $db->query("GRANT UPDATE (category_id,assign_to,edited_by,edited_at,status) ON ewo_fixture.posts TO 'ewo_fixture'@'localhost'");
             $db->query("GRANT INSERT ON ewo_fixture.posts_logs TO 'ewo_fixture'@'localhost'");
@@ -155,6 +190,29 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
     }
 
     $db->select_db('ewo_fixture');
+    if ($create && $refuse) {
+        $db->query(match ($action) {
+            'refuse-create-history' => "REVOKE INSERT ON ewo_fixture.posts_logs FROM 'ewo_fixture'@'localhost'",
+            'restore-create-history' => "GRANT INSERT ON ewo_fixture.posts_logs TO 'ewo_fixture'@'localhost'",
+            'refuse-create-image' => "REVOKE INSERT ON ewo_fixture.post_images FROM 'ewo_fixture'@'localhost'",
+            'incompatible-create-column' => 'ALTER TABLE posts_logs MODIFY published_at DATETIME(6) NULL DEFAULT NULL',
+        });
+        return;
+    }
+    if ($action === 'create-counts' && $create) {
+        echo json_encode($db->query('SELECT (SELECT COUNT(*) FROM posts), (SELECT COUNT(*) FROM posts_logs), (SELECT COUNT(*) FROM post_images)')->fetch_row(), JSON_THROW_ON_ERROR);
+        return;
+    }
+    if ($action === 'create-state' && $create) {
+        $id = filter_var($orderId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($id === false) throw new InvalidArgumentException('Missing fixture Work Order ID.');
+        echo json_encode([
+            'order' => $db->execute_query('SELECT * FROM posts WHERE id=?', [$id])->fetch_assoc(),
+            'history' => $db->execute_query('SELECT * FROM posts_logs WHERE post_id=? ORDER BY id', [$id])->fetch_all(MYSQLI_ASSOC),
+            'images' => $db->execute_query('SELECT image_default FROM post_images WHERE post_id=? ORDER BY id', [$id])->fetch_all(MYSQLI_ASSOC),
+        ], JSON_THROW_ON_ERROR);
+        return;
+    }
     if ($action === 'refuse-reply-history' && $replies) {
         $db->query("REVOKE INSERT ON ewo_fixture.posts_logs FROM 'ewo_fixture'@'localhost'");
         return;

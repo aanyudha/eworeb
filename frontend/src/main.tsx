@@ -17,7 +17,7 @@ import WorkspaceSettings from './WorkspaceSettings'
 import ProfileAndBranding from './ProfileAndBranding'
 
 const mount = document.getElementById('root')!
-const { workspace, dashboardApi, login, logout, workOrdersApi, reportsApi, workOrderRole, knowledgeEditor, scheduleAccess, replyAccess, passwordApi, profileApi, settingsApi, visualApi, createWorkOrderPreview } = mount.dataset
+const { workspace, dashboardApi, login, logout, workOrdersApi, reportsApi, workOrderRole, knowledgeEditor, scheduleAccess, replyAccess, passwordApi, profileApi, settingsApi, visualApi, createWorkOrderPreview, createWorkOrderReady } = mount.dataset
 const directoryViews = JSON.parse(mount.dataset.directoryViews || '[]') as { path: string; label: string; endpoint: string }[]
 const queryClient = new QueryClient()
 const formats = new Intl.NumberFormat()
@@ -127,7 +127,8 @@ function Workspace() {
   const knowledgeAdmin = knowledgeEditor === 'enabled'
   if (knowledgeAdmin) links.push({ path: '/knowledge', label: 'Knowledge Base', preserveSearch: false })
   if (createWorkOrderPreview) links.push(
-    { path: '/work-orders/create', label: 'Create Work Order', unavailable: 'Legacy publication date (published_at) requires verification.' })
+    { path: '/work-orders/create', label: 'Create Work Order', preserveSearch: false,
+      unavailable: createWorkOrderReady === 'enabled' ? undefined : 'Saving requires the legacy publication date columns (published_at) and approval.' })
   if (workOrdersApi) links.push(
     { path: '/work-orders/incoming', label: 'Incoming list', preserveSearch: false },
     { path: '/work-orders/outgoing', label: 'Outgoing list', preserveSearch: false },

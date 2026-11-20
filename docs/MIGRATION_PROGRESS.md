@@ -1,9 +1,15 @@
 # Progres migrasi EWO
 
+## Create Work Order biasa, 20 November 2026 WIB
+
+- Audit membaca tiga dump CI3, seluruh ref Git lokal, serta metadata TCP 3310. CI3 menulis `published_at` saat Create biasa maupun terjadwal. Definisi dan nilai historis tidak ditemukan. Kontrak kompatibilitas `DATETIME NULL DEFAULT NULL` pada `posts` dan `posts_logs` diuji di MySQL sementara. [Paket keputusan](LEGACY_DATABASE_ALIGNMENT.md#keputusan-pemilik-untuk-create-work-order-biasa) memuat dua ALTER untuk review, dampak, backup dan rollback.
+- API Create biasa memeriksa CSRF, `add_post`, akun aktif, scope, role tujuan, relasi lokasi, dan status awal. Publikasi yang diizinkan tampil di Outgoing dengan histori awal. Draft tampil di Drafts. MySQL terisolasi membuktikan rollback saat INSERT histori maupun relasi gambar ditolak, dan menolak definisi kolom yang berbeda dari kontrak. React memakai form existing dan hanya menawarkan submit ketika gate serta skema memenuhi syarat.
+- TCP 3310 tetap tanpa DDL atau DML Create, `ewo.workOrderCreateWrites` tetap false, dan sakelar lain tidak diubah. Scheduled tetap menunggu `intervale`, histori dan verifikasi cron. [Kesiapan operasi](OPERATIONAL_READINESS.md#create-wo-dan-keterbatasan-kompatibilitas) mencatat batas fitur dan syarat aktivasi.
+
 ## Kompatibilitas akhir dan kesiapan operasi, 19 November 2026 WIB
 
 - Reports In/Out kembali tersedia bagi pemegang add_post. Query tetap menggunakan filter, total dan scope WO biasa. Kolom subkategori bersifat opsional berdasarkan metadata schema. UI, PDF A3 dan XLSX berbagi isi sel. Probe read-only di TCP 3310 membandingkan 24 skenario pada enam role dengan daftar WO yang sama.
-- Create Work Order tampil sebagai entri nonaktif. CI3 menulis published_at pada posts dan posts_logs untuk Create biasa. Form operasional dan POST ditahan sampai kontrak timestamp terverifikasi. Scheduled tetap terpisah.
+- Pada tahap ini Create Work Order tampil sebagai entri nonaktif, dengan POST belum tersedia. Scheduled tetap terpisah.
 - Arsip CI3 lokal dipasang baca-saja melalui .env. Resolver memverifikasi 1.924 gambar utama dan 302 gambar tambahan. Profil mendukung perubahan email sendiri pada kondisi email verification nonaktif, serta avatar JPEG dari penyimpanan privat. Visual Settings mengelola logo raster dan favicon PNG untuk login dan Workspace. Penulisan hanya diuji pada fixture, dengan sakelar di TCP 3310 tetap false.
 - Peta endpoint, cakupan izin, risiko, keputusan pemilik dan checklist penerimaan tersedia di [Kesiapan operasi](OPERATIONAL_READINESS.md). Knowledge Center tetap memakai JSON.
 - PHP lint, PHPUnit, TypeScript, Vite dan dua suite MySQL terisolasi lulus. Chrome menguji PDF A3, isi XLSX, mobile, favicon dan refresh. Apache guest menguji aset, branding dan penolakan lampiran. Salinan TCP 3310 tetap memiliki 19.812 posts dan 43.609 posts_logs dengan checksum awal dan akhir identik.

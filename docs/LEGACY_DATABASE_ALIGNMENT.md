@@ -4,7 +4,24 @@
 
 CI3 menampilkan label subkategori hanya apabila lookup berhasil. Field ini bukan predikat pada filter aktif. Laporan CI4 menggunakan join subkategori bila kolom tersedia, atau mengirim `subcategory_name: null` dan `subcategory_available: false` bila skema tidak memilikinya. Sumber label kategori utama, predikat, total, sorting dan paginasi tetap dipakai. PDF dan XLSX memakai isi sel yang sama dengan tabel. Metadata aktual tidak memerlukan DDL untuk laporan dengan batas ini.
 
-Create tetap membutuhkan kontrak published_at pada posts dan posts_logs meski WO biasa. Nilai dari input date_published disalurkan tanpa pengecualian untuk Create biasa. Tidak ditemukan tipe dan makna nilai kosong yang terverifikasi dalam backup. Persyaratan minimum dijelaskan di [Kesiapan operasi](OPERATIONAL_READINESS.md). Scheduled memiliki syarat intervale dan semantik cron terpisah.
+### Keputusan pemilik untuk Create Work Order biasa
+
+**Status TCP 3310: tertahan.** `SHOW CREATE TABLE` baca-saja pada `eworeb` mengonfirmasi bahwa `posts` dan `posts_logs` adalah InnoDB dan keduanya tidak memiliki `published_at`. `created_at` mempunyai default waktu pembuatan pada kedua tabel. CI3 `Post_controller::add_post_post` memanggil `Post_admin_model::add_post` dan `add_post_logs`. Keduanya memasukkan `date_published` sebagai `published_at` tanpa syarat. Hanya `is_scheduled` dan `intervale` bergantung pada kotak jadwal. Form mengirim `date_published` kosong untuk Create biasa, dan JavaScript hanya mewajibkannya untuk penjadwalan dengan format `YYYY-MM-DD HH:mm`.
+
+`fda3e7d3` adalah satu-satunya commit dump SQL CI3 yang ditemukan pada seluruh ref lokal. `ewohotel_tntrm.sql` dan `final_db_deploy.sql` mendefinisikan kedua tabel tanpa kolom tersebut, dan `user.sql` hanya berisi tabel pengguna. Pencarian DDL dan perubahan Git untuk `published_at` serta `intervale` tidak menemukan definisi kolom yang pernah diterapkan. `97689d26` masih memajukan `created_at` dengan interval hari. `277a5f98` memindahkan pemilihan per menit dan `DATE_ADD` ke `published_at`, menyalinnya ke histori jadwal, dan memasukkannya pada Create biasa. Ini membuktikan pemisahan waktu pembuatan dari waktu jadwal. Tipe asal, precision, default, nullability, perlakuan string kosong, timezone server lama, dan nilai historis belum terbukti.
+
+**Usulan untuk ditinjau, belum dijalankan di TCP 3310.** `DATETIME` menyimpan kalender dan jam dari input legacy tanpa konversi zona waktu otomatis. `NULL DEFAULT NULL` menyatakan waktu publikasi tidak ditetapkan atau tidak diketahui, dan membiarkan penulis lain yang tidak memasok kolom tersebut tetap bekerja. CI4 mengirim SQL `NULL` secara eksplisit. CI3 yang mengirim string kosong dapat ditolak oleh MySQL strict mode, sehingga jangan mengarahkan writer CI3 ke skema ini tanpa uji terpisah. Definisi ini adalah kontrak kompatibilitas untuk Create biasa. Definisi MySQL historis belum dapat dipulihkan dari bukti yang tersedia.
+
+```sql
+ALTER TABLE posts ADD COLUMN published_at DATETIME NULL DEFAULT NULL;
+ALTER TABLE posts_logs ADD COLUMN published_at DATETIME NULL DEFAULT NULL;
+```
+
+- Dari 19.812 WO dan 43.609 histori, seluruh nilai kolom baru akan `NULL`. Kolom lama, jumlah, ID, status dan relasinya tetap sama. Tidak ada backfill. Lima WO dan 43 histori bertanda scheduled memiliki waktu historis yang belum dapat diverifikasi. Penambahan kolom ini tidak mengaktifkan Scheduled atau memasok `intervale`.
+- Buat cadangan konsisten database dan media, uji restore pada instance terpisah, lalu catat `SHOW CREATE TABLE`, jumlah dan checksum kolom lama pada kedua tabel. Hentikan penulis sebelum DDL yang disetujui dan konfirmasi ruang serta dampak lock. MySQL meng-commit setiap `ALTER TABLE` secara terpisah. Verifikasi kedua definisi dan fingerprint sebelum memberi izin INSERT minimum dan menguji UAT.
+- Untuk rollback, matikan `ewo.workOrderCreateWrites` terlebih dahulu. Jika baru satu ALTER yang berhasil, verifikasi pemakaian kolom sebelum menghapus kolom yang baru ditambah. Sebelum menjatuhkan salah satu kolom setelah operasi, arsipkan nilai yang mungkin sudah ditulis dan rekonsiliasi WO, histori serta referensi gambar yang tersimpan sejak backup. Restore dari cadangan teruji bila diperlukan dengan prosedur pemulihan yang mempertahankan transaksi yang sudah diterima.
+
+Lihat [bukti transaksi dan persetujuan aktivasi](OPERATIONAL_READINESS.md#create-wo-dan-keterbatasan-kompatibilitas).
 
 ## Audit ulang schema aktif dan kontrak modul, 19 November 2026 WIB
 
@@ -12,7 +29,7 @@ Metadata baca-saja MySQL 8.0.45 TCP 3310 mengembalikan 18 tabel, 248 kolom, 18 i
 
 | Field | Penggunaan dan arti | Bukti historis dan perubahan minimum untuk ditinjau |
 | --- | --- | --- |
-| `published_at` | `Post_admin_model::add_post` dan `add_post_logs` mengisi nilai ini saat membuat WO biasa atau terjadwal. Query `check_scheduled_posts` memilih WO pada menit yang sesuai. `update_sch_wo` maju ke tanggal berikutnya. View menampilkan tanggal berikutnya dan sisa hari. | Kode penjadwalan historis terlihat pada `97689d26` dan `277a5f98`. Tiga dump tidak memberi definisi atau nilai asli. `created_at` menunjukkan waktu pembuatan. Untuk membuka Create/Scheduled, verifikasi definisi kolom dan sumber tanggal asli untuk posts serta posts_logs, lalu review perubahan aditif dan dampak jadwal. |
+| `published_at` | `Post_admin_model::add_post` dan `add_post_logs` mengisi nilai ini saat membuat WO biasa atau terjadwal. Query `check_scheduled_posts` memilih WO pada menit yang sesuai. `update_sch_wo` maju ke tanggal berikutnya. | Tiga dump tidak memberi definisi atau nilai asli. Usulan `DATETIME NULL DEFAULT NULL` untuk Create biasa dirinci di atas. Scheduled memerlukan investigasi tersendiri. |
 | `intervale` | Form dan model menyimpan jumlah hari untuk pengulangan. `Cron_controller::check_scheduled_posts` mengirim nilai ke `DATE_ADD` dan model menulisnya juga pada histori. | Kode historis menunjukkan semantik hari. Nilai dan tipe database tidak ditemukan dalam tiga dump atau metadata aktif. Pulihkan definisi dan nilai terverifikasi dari backup terjadwal sebelum mengusulkan perubahan. |
 | `subcategory_id` | `reports_in.php` dan `reports_out.php` mengambil label subkategori dengan `helper_get_category`. Model legacy membaca filter `subcategory` tanpa predikat subkategori. CI4 memakai kolom yang sama dalam join label laporan. | `final_db_deploy.sql` versi awal menyimpan definisi `INT(11) DEFAULT NULL` pada posts dan posts_logs. Nilai per WO historis tidak terverifikasi. Untuk laporan, tinjau perubahan aditif minimum pada posts setelah bukti nilai atau konfirmasi pemilik tentang semantik NULL. Pertahankan label, filter dan hasil ekspor sampai rekonsiliasi selesai. |
 

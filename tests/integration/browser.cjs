@@ -6,6 +6,7 @@ const { spawn } = require('node:child_process');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 module.exports = async function browserSmoke(binary, runtime, origin) {
+    const mysql = JSON.parse(process.env.EWO_HTTP_MYSQL_FIXTURE ?? 'null');
     const profile = path.join(runtime, 'browser');
     const chrome = spawn(binary, ['--headless=new','--disable-background-networking','--disable-gpu','--no-first-run',
         '--remote-debugging-port=0','--user-data-dir='+profile,'about:blank'], {windowsHide:true,stdio:'ignore'});
@@ -67,7 +68,23 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
         await evaluate("document.querySelector('#email').value='admin@example.test'; document.querySelector('#password').value='fixture-password'; document.querySelector('button[type=submit]').click()");
         await until(()=>evaluate("location.pathname==='/workspace' && document.querySelector('.kpi strong') !== null"));
         assert.equal(await evaluate("[...document.querySelectorAll('a')].some(a=>a.textContent==='Classic dashboard')"),false);
-        assert.ok(await evaluate("document.querySelector('[aria-disabled=true][role=link][aria-label^=Create]')?.textContent.includes('publication date')"));
+        if (mysql?.create) {
+            await evaluate("document.querySelector('nav a[href$=\"/work-orders/create\"]').click()");
+            await until(()=>evaluate("Boolean(document.querySelector('.create-wo-form button[type=submit]:not(:disabled)'))"));
+            for (const [name, value] of [['corp_id','1'],['dept_id','10'],['location_id','1'],['sublocation_id','3']]) {
+                await until(()=>evaluate(`Boolean(document.querySelector('[name=${name}] option[value="${value}"]'))`));
+                await evaluate(`{const field = document.querySelector('[name=${name}]'); field.value = '${value}'; field.dispatchEvent(new Event('change', {bubbles:true}));}`);
+            }
+            await evaluate("{const form = document.querySelector('.create-wo-form'); form.elements.role_id.selectedIndex=1; form.elements.title.value='Browser created WO'; form.elements.summary.value='Browser initial history'; form.querySelector('button[value=\"1\"]').click();}");
+            const confirmation = await until(()=>evaluate(String.raw`document.querySelector('.create-wo-form [role=status]')?.innerText.match(/Work Order #(\d+) published/)?.[1]`));
+            await send('Page.navigate',{url:origin+'/workspace/work-orders/outgoing?q=Browser+created+WO'});
+            await until(()=>evaluate("document.querySelector('tbody')?.innerText.includes('Browser created WO')"));
+            await evaluate(`document.querySelector('tbody a[href$="/outgoing/${confirmation}"]').click()`);
+            await until(()=>evaluate(`document.querySelector('h1')?.innerText==='Work Order #${confirmation}' && document.querySelector('tbody')?.innerText.includes('Browser initial history')`));
+            console.log('Chrome: real Create WO confirmation, Outgoing and detail/history PASS');
+        } else {
+            assert.ok(await evaluate("document.querySelector('[aria-disabled=true][role=link][aria-label^=Create]')?.textContent.includes('publication date')"));
+        }
         await send('Page.navigate',{url:origin+'/admin'});
         await until(()=>evaluate("location.pathname==='/workspace' && document.querySelector('.kpi strong') !== null"));
         await send('Page.reload');
@@ -106,7 +123,7 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
             await evaluate("document.querySelector('.scrim').click()");
         }
         await send('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});
-        if (process.env.EWO_HTTP_MYSQL_FIXTURE && !JSON.parse(process.env.EWO_HTTP_MYSQL_FIXTURE).replies) {
+        if (mysql && !mysql.replies && !mysql.create) {
             await send('Page.navigate',{url:origin+'/workspace/work-orders/create'});
             await until(()=>evaluate("document.querySelector('.create-wo-form') && document.querySelector('h1')?.innerText==='Create Work Order'"));
             assert.match(await evaluate("document.querySelector('#create-wo-status').textContent"),/posts_logs\.published_at/);

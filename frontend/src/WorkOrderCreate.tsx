@@ -1,12 +1,14 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useRef, useState, type FormEvent } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState, LoadingState, PageHeader } from './components'
 
 type Choice = { id: number | string; name: string }
 type Department = Choice & { corp_id: number | string }
 type Location = Department & { parent_id: number | string }
+type Csrf = { header: string; hash: string }
 type Preview = {
-  reason: string
+  reason: string | null
+  submission: { endpoint: string; csrf: Csrf } | null
   canChooseScope: boolean
   canSchedule: boolean
   corporations: Choice[]
@@ -35,8 +37,39 @@ function CreateWorkOrderForm({ data }: { data: Preview }) {
   const departments = data.departments.filter(row => String(row.corp_id) === corporation)
   const locations = data.locations.filter(row => String(row.corp_id) === corporation)
   const sublocations = location ? locations.filter(row => String(row.parent_id) === location) : []
+  const queryClient = useQueryClient()
+  const pending = useRef(false)
+  const csrf = useRef<Csrf | null>(null)
+  const mutation = useMutation({
+    mutationFn: async ({ fields, submission }: { fields: FormData; submission: NonNullable<Preview['submission']> }) => {
+      const token = csrf.current ?? submission.csrf
+      const response = await fetch(submission.endpoint, {
+        method: 'POST', body: fields, headers: { Accept: 'application/json', [token.header]: token.hash },
+      })
+      const result = await response.json().catch(() => ({}))
+      if (result.csrf) csrf.current = result.csrf
+      if (response.status !== 201 || !Number.isSafeInteger(result.id) || result.id < 1) {
+        throw new Error(result.error || 'Create could not be confirmed. Check the work order lists before retrying.')
+      }
+      return { id: result.id as number, draft: fields.get('status') === '0' }
+    },
+    retry: false,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['work-orders'] })
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+    onSettled: () => { pending.current = false },
+  })
 
-  return <form className="panel create-wo-form" aria-describedby="create-wo-status" onSubmit={event => event.preventDefault()}>
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const button = (event.nativeEvent as SubmitEvent).submitter
+    if (!data.submission || data.category === null || pending.current || mutation.isSuccess || !(button instanceof HTMLButtonElement)) return
+    pending.current = true
+    mutation.mutate({ fields: new FormData(event.currentTarget, button), submission: data.submission })
+  }
+
+  return <form className="panel create-wo-form" aria-describedby={data.reason ? 'create-wo-status' : undefined} onSubmit={submit}>
     <input type="hidden" name="post_type" value="post" />
     <input type="hidden" name="lang_id" value="1" />
     <input type="hidden" name="visibility" value="1" />
@@ -66,9 +99,9 @@ function CreateWorkOrderForm({ data }: { data: Preview }) {
       <option value="0">Select sublocation</option>{options(sublocations)}
     </select></label>
     <label className="create-wo-wide">Description<textarea name="summary" required maxLength={5000} rows={4} /></label>
-    <label className="create-wo-wide">Image description<input name="image_description" /></label>
+    <label className="create-wo-wide">Image description<input name="image_description" maxLength={500} /></label>
     <fieldset className="create-wo-wide" disabled>
-      <legend>Image selection unavailable in preview</legend>
+      <legend>Image selection unavailable</legend>
       <button className="secondary" type="button">Select main image</button>
       <button className="secondary" type="button">Select additional images</button>
     </fieldset>
@@ -78,6 +111,13 @@ function CreateWorkOrderForm({ data }: { data: Preview }) {
       <label>Publication date<input type="datetime-local" name="date_published" /></label>
       <label>Interval in days<input name="intervale" /></label>
     </fieldset>}
+    {data.submission && <div className="create-wo-wide">
+      <button className="secondary" type="submit" name="status" value="0" disabled={mutation.isPending || mutation.isSuccess || data.category === null}>Save Draft</button>{' '}
+      <button className="primary" type="submit" name="status" value="1" disabled={mutation.isPending || mutation.isSuccess || data.category === null}>Publish Work Order</button>
+      {mutation.isPending && <p role="status">Saving work order…</p>}
+      {mutation.error && <p role="alert">{mutation.error.message}</p>}
+      {mutation.data && <p role="status">Work Order #{mutation.data.id} {mutation.data.draft ? 'saved as a draft' : 'published'}.</p>}
+    </div>}
   </form>
 }
 
@@ -90,7 +130,7 @@ export default function WorkOrderCreate({ endpoint }: { endpoint: string }) {
     {query.isPending && <LoadingState />}
     {query.error && <ErrorState message={query.error.message} />}
     {query.data && <>
-      <p id="create-wo-status" role="status">{query.data.reason} This form is a preview. Entries are discarded when you leave the page.</p>
+      {query.data.reason && <p id="create-wo-status" role="status">{query.data.reason} This form is a preview. Entries are discarded when you leave the page.</p>}
       <CreateWorkOrderForm data={query.data} />
     </>}
   </>

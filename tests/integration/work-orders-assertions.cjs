@@ -138,6 +138,7 @@ module.exports = async function testWorkOrders(request, login, location) {
 
   assert.equal(location(await login('admin@example.test','fixture-password')), '/workspace')
   const disabledWrites = [
+    ['/api/v1/work-orders/create', 503],
     ['/api/v1/work-orders/incoming/1/reply', 503],
     ['/api/v1/work-orders/incoming/1/attachments/image', 503],
     ['/api/v1/work-orders/drafts/1/publish', 503],
@@ -156,7 +157,7 @@ module.exports = async function testWorkOrders(request, login, location) {
     assert.equal(response.status, code, route)
   }
   await request('/logout')
-  console.log('HTTP: authorized session cannot use mutation endpoints when all three switches are false PASS')
+  console.log('HTTP: authorized session cannot use mutation endpoints when write switches are false PASS')
 
   console.log('Work Order lists: permissions, corporation/department scope, filters, pagination, and deep links PASS')
 }

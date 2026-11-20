@@ -43,6 +43,8 @@ $routes->get('api/v1/work-orders/(incoming|outgoing)', 'WorkOrderController::ind
     ['filter' => 'ewo-admin:admin_panel,add_post,json']);
 $routes->get('api/v1/work-orders/create/preview', 'WorkOrderCreateController::preview',
     ['filter' => 'ewo-admin:admin_panel,add_post,json']);
+$routes->post('api/v1/work-orders/create', 'WorkOrderCreateController::save',
+    ['filter' => 'ewo-admin:admin_panel,add_post,json']);
 
 
 $routes->get('api/v1/admin-directory/(categories|subcategories|locations|sublocations|departments|corporations|users|administrators|roles)',

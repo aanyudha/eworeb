@@ -6,8 +6,10 @@ namespace App\Controllers;
 
 use App\Models\AdminDirectory;
 use App\Models\WorkOrderList;
+use App\Services\WorkOrderCreate;
 use Config\Database;
 use CodeIgniter\HTTP\ResponseInterface;
+use RuntimeException;
 
 final class WorkspaceController extends BaseController
 {
@@ -40,13 +42,23 @@ final class WorkspaceController extends BaseController
 
 
         $workOrders = $workOrderRole !== null ? new WorkOrderList(Database::connect('ewo')) : null;
+        $createAccess = $viewer !== null && $identity->allows($viewer, 'add_post');
+        $createReady = false;
+        if ($createAccess && env('ewo.workOrderCreateWrites', false) === true) {
+            try {
+                $createReady = (new WorkOrderCreate(Database::connect('ewo')))->writeBlocker() === null;
+            } catch (RuntimeException) {
+                // A metadata error must not prevent access to the rest of the Workspace.
+            }
+        }
         return $this->response->setHeader('Cache-Control', 'private, no-store')->setBody(view('admin/workspace', [
             'entry' => $entry,
             'branding' => BrandingController::assets(),
             'passwordAccess' => AccountController::canChangePassword($viewer),
             'settingsAccess' => $viewer !== null && $identity->allows($viewer, 'settings'),
             'workOrderRole' => $workOrderRole,
-            'createWorkOrderAccess' => $viewer !== null && $identity->allows($viewer, 'add_post'),
+            'createWorkOrderAccess' => $createAccess,
+            'createWorkOrderReady' => $createReady,
             'scheduleAccess' => $workOrders !== null && $identity->allows($viewer, 'manage_all_posts')
                 && $workOrders->missingColumns('scheduled') === [],
             'replyAccess' => $workOrders !== null && env('ewo.workOrderWrites', false) === true

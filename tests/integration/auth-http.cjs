@@ -60,6 +60,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     'ewo.workOrderUploadRoot = '+(mysql?.replies ? uploads.replaceAll('\\','/') : ''),
     'ewo.accountMediaRoot = '+(mysql?.replies ? accountMedia.replaceAll('\\','/') : ''),
     'ewo.masterDataWrites = '+Boolean(mysql?.replies), 'ewo.accountWrites = '+Boolean(mysql?.replies),
+    'ewo.workOrderCreateWrites = '+Boolean(mysql?.create),
     ...connection, 'session.savePath = "'+sessionPath+'"',
     'ewo.sessionKey = '+require('node:crypto').randomBytes(32).toString('hex'), 'session.cookieName = '+sessionName,
     'knowledgebase.directory = "'+path.join(runtime,'kb')+'"',
@@ -75,7 +76,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const env={...process.env,PHPRC:runtime,PHP_INI_SCAN_DIR:''};
   delete env.EWO_REPLY_FIXTURE_ADMIN;
   for (const key of Object.keys(env)) {
-    if (/^(?:CI_ENVIRONMENT|app[._]baseURL|database[._]ewo[._]|ewo[._](?:sessionKey|workOrderWrites|workOrderMediaRoot|workOrderUploadRoot|masterDataWrites|accountWrites|accountMediaRoot)|session[._]cookieName|knowledgebase[._](?:directory|backend)|database[._]kb[._]|session[._]savePath)/i.test(key)) delete env[key];
+    if (/^(?:CI_ENVIRONMENT|app[._]baseURL|database[._]ewo[._]|ewo[._](?:sessionKey|workOrderWrites|workOrderCreateWrites|workOrderMediaRoot|workOrderUploadRoot|masterDataWrites|accountWrites|accountMediaRoot)|session[._]cookieName|knowledgebase[._](?:directory|backend)|database[._]kb[._]|session[._]savePath)/i.test(key)) delete env[key];
   }
   const diagnosis=execFileSync(php,['spark','ewo:diagnose'],{cwd:target,env:{...env,CI_ENVIRONMENT:'development'},encoding:'utf8'});
   assert.match(diagnosis,/database.ewo.database: set/);
@@ -185,10 +186,11 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     }
     console.log('Dashboard parity: '+scenarios.length+' CI3 scenarios on identical synthetic rows');
   }
-  if (mysql && !mysql.replies) await require('./work-orders-assertions.cjs')(request,login,location);
+  if (mysql && !mysql.replies && !mysql.create) await require('./work-orders-assertions.cjs')(request,login,location);
   assert.equal(audit('snapshot'),before,'fixture Work Order rows remain identical');
   if (process.env.EWO_TEST_BROWSER) await require('./browser.cjs')(process.env.EWO_TEST_BROWSER,runtime,origin);
-  if (!mysql?.replies) assert.equal(audit('snapshot'),before,'fixture Work Order rows remain identical');
+  if (!mysql?.replies && !mysql?.create) assert.equal(audit('snapshot'),before,'fixture Work Order rows remain identical');
+  if (mysql?.create) await require('./wo-create-assertions.cjs')(request, login, location, audit);
   if (mysql?.replies) {
     await require('./wo-reply-assertions.cjs')(request,login,location,audit,path.join(uploads,'audios','eworeb'));
     await require('./master-and-account-assertions.cjs')(request,login,location,audit);

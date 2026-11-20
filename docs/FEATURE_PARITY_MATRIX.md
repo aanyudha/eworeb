@@ -1,6 +1,6 @@
 # Matriks parity EWO CI3 → CI4
 
-## Status modul dan parity legacy terbaru, 19 November 2026 WIB
+## Status modul dan parity legacy terbaru, 20 November 2026 WIB
 
 | Modul | Status | Cakupan |
 | --- | --- | --- |
@@ -18,7 +18,8 @@
 | My profile | Write verified on isolated MySQL | Cakupan akun sendiri. Email memerlukan password saat ini dan hanya dapat berubah saat email verification nonaktif. Avatar memerlukan GD dan penyimpanan privat. |
 | Change password | Write verified on isolated MySQL | Current password wajib dan hash baru kompatibel dengan login legacy. |
 | Application settings dan Visual Settings | Write verified on isolated MySQL | Timezone, field teks aktif, logo raster dan favicon PNG untuk login serta Workspace. Email Settings dan konfigurasi HTML masih tertunda. |
-| Create WO dan Scheduled | Blocked by schema | `published_at` pada posts dan posts_logs. Scheduled juga membutuhkan `intervale`. |
+| Create WO biasa | Write verified on isolated MySQL, disabled on TCP 3310 | Form existing memakai API gated setelah skema `DATETIME NULL DEFAULT NULL` tersedia. Draft, Publish, histori awal, relasi gambar melalui API, scope, CSRF, dan rollback diuji. Pemilih gambar pada form dan notifikasi belum aktif. DDL memerlukan persetujuan pemilik. |
+| Scheduled | Blocked by schema | Kontrak `intervale`, histori jadwal dan cron belum terbukti. Create biasa tidak mengaktifkan Scheduled. |
 | Reports In dan Reports Out | Read-only working with limitation | Baris dan scope dari data aktual. Penanda subkategori tidak tersedia sama pada tabel, PDF, dan XLSX. Hasil ini tidak menetapkan paritas lengkap dengan Jasper. |
 | Edit gallery dan ordered list | Blocked by schema | Tabel relasi item CI3 tidak tersedia pada schema aktif. |
 | Edit metadata audio dan video | Not yet migrated | Source CI3 memiliki view. Jalur lokal memakai post_type yang seluruhnya post. Detail audio baru sebatas lampiran. |

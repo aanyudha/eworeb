@@ -21,6 +21,7 @@
      <?php endif; ?>
      <?php if ($createWorkOrderAccess): ?>
      data-create-work-order-preview="<?= esc(site_url('api/v1/work-orders/create/preview'), 'attr') ?>"
+     data-create-work-order-ready="<?= $createWorkOrderReady ? 'enabled' : 'disabled' ?>"
      <?php endif; ?>
      data-profile-api="<?= esc(site_url('api/v1/account/profile'), 'attr') ?>"
      <?php if ($settingsAccess): ?>
