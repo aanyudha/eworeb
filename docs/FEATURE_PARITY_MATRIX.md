@@ -5,6 +5,7 @@
 | Modul | Status | Cakupan |
 | --- | --- | --- |
 | Login dan dashboard tunggal React | Fully working | Login Apache dengan akun legacy sudah dibuktikan pada tahap sebelumnya. Regresi sekarang memakai MySQL dan Chrome terisolasi. |
+| Sidebar Workspace dan menu akun | Browser verified | Menu WO langsung, dua grup berdasarkan izin, profil dan kata sandi di menu akun, deep link, keyboard, compact, tablet dan mobile. |
 | Incoming, Outgoing, detail dan history | Read-only working | API mengikuti scope WO. Arsip baca-saja terpasang sebagian dan unduhan mengikuti relasi dan pemeriksaan izin. |
 | Balasan, assignment, completion dan reopen tipe post | Write verified on isolated MySQL | Perubahan dan histori dalam satu transaksi dengan pemeriksaan revisi. |
 | Publikasi Draft biasa | Write verified on isolated MySQL | Daftar React dengan konfirmasi. Hanya `status` berubah. Filter scope, penolakan lintas corporation atau department, CSRF dan pengiriman ulang diuji. |
@@ -18,14 +19,14 @@
 | My profile | Write verified on isolated MySQL | Cakupan akun sendiri. Email memerlukan password saat ini dan hanya dapat berubah saat email verification nonaktif. Avatar memerlukan GD dan penyimpanan privat. |
 | Change password | Write verified on isolated MySQL | Current password wajib dan hash baru kompatibel dengan login legacy. |
 | Application settings dan Visual Settings | Write verified on isolated MySQL | Timezone, field teks aktif, logo raster dan favicon PNG untuk login serta Workspace. Email Settings dan konfigurasi HTML masih tertunda. |
-| Create WO biasa | Write verified on isolated MySQL, disabled on TCP 3310 | Form existing memakai API gated setelah skema `DATETIME NULL DEFAULT NULL` tersedia. Draft, Publish, histori awal, relasi gambar melalui API, scope, CSRF, dan rollback diuji. Pemilih gambar pada form dan notifikasi belum aktif. DDL memerlukan persetujuan pemilik. |
+| Create WO biasa | Enabled on development TCP 3310, writes verified on isolated MySQL | Dua kolom `DATETIME NULL DEFAULT NULL` telah diterapkan dan diverifikasi. Description opsional. Draft dan Publish, histori awal, relasi gambar melalui API, scope, CSRF, dan rollback lulus pada fixture. Pemilih gambar pada form dan notifikasi belum aktif. |
 | Scheduled | Blocked by schema | Kontrak `intervale`, histori jadwal dan cron belum terbukti. Create biasa tidak mengaktifkan Scheduled. |
 | Reports In dan Reports Out | Read-only working with limitation | Baris dan scope dari data aktual. Penanda subkategori tidak tersedia sama pada tabel, PDF, dan XLSX. Hasil ini tidak menetapkan paritas lengkap dengan Jasper. |
 | Edit gallery dan ordered list | Blocked by schema | Tabel relasi item CI3 tidak tersedia pada schema aktif. |
 | Edit metadata audio dan video | Not yet migrated | Source CI3 memiliki view. Jalur lokal memakai post_type yang seluruhnya post. Detail audio baru sebatas lampiran. |
 | Knowledge Center dan editor | Fully working | JSON existing. Publikasi, CSRF, akses publik dan navigasi lulus di fixture. |
 
-Operasi tulis di atas hanya diuji pada MySQL terisolasi. Sakelar tulis pada salinan eworeb TCP 3310 tetap nonaktif.
+Operasi tulis di atas diuji pada MySQL terisolasi. Hanya sakelar Create aktif pada pengembangan `eworeb` TCP 3310.
 
 ## Bukti dashboard tunggal dan alur WO sebelumnya, 19 November 2026 WIB
 

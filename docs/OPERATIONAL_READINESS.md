@@ -10,7 +10,7 @@
 
 ## Sakelar penulisan
 
-Semua bernilai false pada salinan yang dipertahankan di TCP 3310. Prefix endpoint di tabel adalah /api/v1. Semua POST melewati CSRF global dan filter sesi. Endpoint yang menyimpan data memeriksa akun aktif dan meminta izin sesuai operasi.
+Hanya `ewo.workOrderCreateWrites` aktif pada `.env` lokal pengembangan TCP 3310. Prefix endpoint di tabel adalah `/api/v1`. Semua POST melewati CSRF global dan filter sesi. Endpoint yang menyimpan data memeriksa akun aktif dan meminta izin sesuai operasi.
 
 | Sakelar | POST yang dikendalikan | Cakupan, transaksi, histori dan kegagalan |
 | --- | --- | --- |
@@ -25,11 +25,13 @@ Pembuktian mutasi memakai instance MySQL loopback sementara terpisah dengan defi
 
 ## Create WO dan keterbatasan kompatibilitas
 
-TCP 3310 belum mempunyai kedua kolom publication dan penulisan Create tetap nonaktif. [Paket keputusan skema](LEGACY_DATABASE_ALIGNMENT.md#keputusan-pemilik-untuk-create-work-order-biasa) memuat bukti CI3, SQL untuk review, dampak 19.812 WO dan 43.609 histori, backup serta rollback. Definisi asli dan tanggal publikasi historis belum terbukti. Scheduled memerlukan kontrak `intervale`, validasi zona waktu dan pengujian cron tersendiri.
+Kedua kolom publikasi tersedia pada TCP 3310. [Catatan eksekusi skema](LEGACY_DATABASE_ALIGNMENT.md#keputusan-pemilik-untuk-create-work-order-biasa) memuat bukti CI3, dua ALTER, hasil verifikasi 19.812 WO dan 43.609 histori, backup serta rollback. Definisi asli dan tanggal publikasi historis belum terbukti. Scheduled memerlukan kontrak `intervale`, validasi zona waktu dan pengujian cron tersendiri.
 
 Workspace menampilkan entri nonaktif dan pratinjau tanpa aksi simpan ketika gate tertutup. `GET api/v1/work-orders/create/preview` mengembalikan opsi yang scoped. `POST api/v1/work-orders/create` memvalidasi pilihan admin atau scope sesi non-admin, lokasi induk dan sublokasi, role tujuan `author`, `author1`, `author2`, dan status Draft atau Publish. Kategori New, WO biasa dan visibilitas berasal dari server. `posts`, satu `posts_logs` awal, serta relasi gambar yang berlaku ditulis atomik. API menerima referensi gambar katalog legacy. Opsi gambar milik pengguna lain memerlukan pengaturan file manager bersama serta corporation yang sama. Pemilih gambar pada form, upload baru dan pemberitahuan subscriber berada di luar aktivasi Create biasa. Work Order yang dipublikasikan dapat tampil di Outgoing sesuai filter role dan corporation/department yang sudah ada.
 
 Suite `tests/integration/mysql-workspace.cjs <php.exe> <mysqld.exe> --wo-create` lulus dengan datadir sementara, definisi tabel dari `SHOW CREATE TABLE` baca-saja, data sintetis dan DDL usulan pada fixture. DDL mempertahankan setiap field lama dan memberi `NULL` pada kolom baru, termasuk pada histori sintetis yang bertanda scheduled. HTTP memeriksa penolakan guest dan akun tanpa `add_post`, CSRF, payload invalid dan scope palsu, Publish dan Draft, detail/histori serta relasi gambar. Pencabutan INSERT histori dan INSERT gambar masing-masing membuktikan rollback tanpa tambahan baris. Skema yang tidak cocok menutup akses tulis meskipun gate fixture aktif. Chrome memublikasikan WO dari form React, membaca konfirmasi dengan ID hasil commit, lalu membuka Outgoing dan histori awal.
+
+Regresi 20 November menguji Draft dengan Description kosong dan Publish melalui form React. PHP lint, PHPUnit 9 tes dan 35 assertion, TypeScript dan Vite lulus. Smoke CI4 terhadap TCP 3310 berjalan dalam transaksi baca-saja dengan sesi uji CLI in-memory. Akun aktif yang berizin mendapat preview dan Workspace dengan Create aktif. Guest ditolak. Penolakan akun tanpa `add_post` dan aksi simpan autentik diuji dengan sesi HTTP pada fixture.
 
 Edit umum audio/video belum terbukti setara. File_controller menyediakan upload, select, list, search dan delete untuk katalog audio/video, sementara jalur penyuntingan metadata in-place tidak ditemukan. Field video_embed_code dan video_path pada set_data CI3 dikomentari. Audio pada WO masih didukung melalui unggah dan relasi yang sudah diuji. Gallery dan ordered list tetap diblokir oleh skema tabel relasi yang hilang. Visual Settings aktif hanya logo dan favicon. Upaya mengedit warna/format lama tidak ditambahkan; field branding mentah SVG ditahan dan favicon baru dibatasi PNG sesuai input form legacy. Email Settings, kontak rich HTML, dan pengiriman email aktivasi masih memerlukan alur aman yang diverifikasi.
 
@@ -47,7 +49,7 @@ Edit umum audio/video belum terbukti setara. File_controller menyediakan upload,
 - [ ] Siapkan direktori privat, writable oleh PHP sesuai kebutuhan. Mount arsip sebagai baca-saja. Pisahkan ewo.workOrderUploadRoot dan ewo.accountMediaRoot. Verifikasi fileinfo dan GD untuk validasi unggahan profil dan branding, izin filesystem, batas PHP dan larangan akses HTTP langsung. Sertakan media pada backup. Verifikasi bentuk dan keberhasilan restore dan rekonsiliasi reference jika hasil commit tidak diketahui.
 - [ ] Jalankan suite fixture schema aktual dan uji ulang browser di instance penerimaan. Validasi kegagalan parsial, pengiriman ulang dan perubahan bersamaan secara terpisah bila menjadi kebutuhan operasional.
 - [ ] Putuskan kebijakan histori administrasi. CI3 tidak memberi log mutasi admin khusus. Tentukan apakah status akun juga perlu mencabut sesi yang sudah aktif.
-- [ ] Untuk Create, setujui kontrak kompatibilitas dan DDL review, uji backup/restore, lalu verifikasi kedua kolom serta fingerprint data. Beri akun aplikasi hanya INSERT yang diperlukan pada `posts`, `posts_logs`, dan `post_images` beserta akses baca yang dibutuhkan. Terima UAT ordinary Create dan relasi media, lalu setujui aktivasi `ewo.workOrderCreateWrites` secara terpisah. Scheduled memerlukan investigasi `intervale`, histori asli dan cron.
+- [x] Untuk Create biasa di pengembangan, pemilik menyetujui DDL dan aktivasi. Backup/restore, kedua kolom, fingerprint, fixture Create dan smoke baca-saja lulus. Untuk pemulihan operasional, matikan `ewo.workOrderCreateWrites` sebelum tindakan lanjutan. Scheduled memerlukan investigasi `intervale`, histori asli dan cron.
 - [ ] Putuskan kelengkapan arsip, layanan email dan aktivasi, atau tetap gunakan email verification nonaktif bila sesuai kebijakan pemilik. Tentukan penyimpanan KB semantik hanya jika JSON perlu diganti.
 - [ ] Aktifkan sakelar satu per satu hanya setelah persetujuan pemilik. Ulangi smoke test, pemantauan galat dan pengecekan integritas sesuai cakupan penulisan yang diizinkan.
 

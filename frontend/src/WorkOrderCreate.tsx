@@ -98,7 +98,7 @@ function CreateWorkOrderForm({ data }: { data: Preview }) {
     <label>Sublocation<select key={location} name="sublocation_id" required disabled={!location}>
       <option value="0">Select sublocation</option>{options(sublocations)}
     </select></label>
-    <label className="create-wo-wide">Description<textarea name="summary" required maxLength={5000} rows={4} /></label>
+    <label className="create-wo-wide">Description<textarea name="summary" maxLength={5000} rows={4} /></label>
     <label className="create-wo-wide">Image description<input name="image_description" maxLength={500} /></label>
     <fieldset className="create-wo-wide" disabled>
       <legend>Image selection unavailable</legend>

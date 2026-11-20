@@ -4,7 +4,7 @@ import { BrowserRouter, NavLink, Route, Routes, useLocation, useSearchParams } f
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import {
   AppShell, ConfirmDialog, DataTable, DetailDrawer, ErrorState, FilterPanel, KPIStatCard, LoadingState, PageHeader, statuses,
-  type Counts, type DashboardData, type Filters, type StatRow,
+  type Counts, type DashboardData, type Filters, type StatRow, type WorkspaceNavItem,
 } from './components'
 import './style.css'
 import KnowledgeAdmin from './KnowledgeAdmin'
@@ -123,29 +123,32 @@ function Workspace() {
         ? <a href={login}>Sign in</a>
         : <button className="secondary" onClick={() => void refetch()}>Retry</button>} />
   </> : isPending ? <><PageHeader title="Dashboard" /><LoadingState /></> : page
-  const links: { path: string; label: string; preserveSearch?: boolean; unavailable?: string }[] = sections.filter(section => data?.summary[section.key]).map(({path, label}) => ({ path: String(path), label: String(label) }))
+  const links: WorkspaceNavItem[] = []
   const knowledgeAdmin = knowledgeEditor === 'enabled'
-  if (knowledgeAdmin) links.push({ path: '/knowledge', label: 'Knowledge Base', preserveSearch: false })
   if (createWorkOrderPreview) links.push(
-    { path: '/work-orders/create', label: 'Create Work Order', preserveSearch: false,
+    { path: '/work-orders/create', label: 'Create Work Order',
       unavailable: createWorkOrderReady === 'enabled' ? undefined : 'Saving requires the legacy publication date columns (published_at) and approval.' })
   if (workOrdersApi) links.push(
-    { path: '/work-orders/incoming', label: 'Incoming list', preserveSearch: false },
-    { path: '/work-orders/outgoing', label: 'Outgoing list', preserveSearch: false },
+    { path: '/work-orders/incoming', label: 'Incoming WO' },
+    { path: '/work-orders/outgoing', label: 'Outgoing WO' },
+    { path: '/work-orders/drafts', label: 'Drafts' },
   )
-  if (workOrdersApi) links.push({ path: '/work-orders/drafts', label: 'Drafts', preserveSearch: false })
-  if (scheduleAccess === 'enabled') links.push({ path: '/work-orders/scheduled', label: 'Scheduled', preserveSearch: false })
+  if (scheduleAccess === 'enabled') links.push({ path: '/work-orders/scheduled', label: 'Scheduled' })
   if (reportsApi) links.push(
-    { path: '/reports/incoming', label: 'Reports In', preserveSearch: false },
-    { path: '/reports/outgoing', label: 'Reports Out', preserveSearch: false },
+    { path: '/reports/incoming', label: 'Reports In' },
+    { path: '/reports/outgoing', label: 'Reports Out' },
   )
-  const directoryLinks = directoryViews.map(({ path, label }) => ({ path, label, preserveSearch: false }))
-  links.push(...directoryLinks)
-  if (profileApi) links.push({ path: '/account/profile', label: 'My profile', preserveSearch: false })
-  if (settingsApi) links.push({ path: '/settings/application', label: 'Application settings', preserveSearch: false })
-  if (visualApi) links.push({ path: '/settings/visual', label: 'Visual settings', preserveSearch: false })
-  if (passwordApi) links.push({ path: '/account/password', label: 'Change password', preserveSearch: false })
-  return <AppShell viewer={data?.viewer} sections={links}
+  const configurationPaths = ['/directory/users', '/directory/administrators', '/directory/roles']
+  const masterData = directoryViews.filter(({ path }) => !configurationPaths.includes(path))
+  const configuration: WorkspaceNavItem[] = directoryViews.filter(({ path }) => configurationPaths.includes(path))
+  if (settingsApi) configuration.push({ path: '/settings/application', label: 'Application Settings' })
+  if (visualApi) configuration.push({ path: '/settings/visual', label: 'Visual Settings' })
+  if (knowledgeAdmin) configuration.push({ path: '/knowledge', label: 'Knowledge Base Admin' })
+  const accountLinks: WorkspaceNavItem[] = []
+  if (profileApi) accountLinks.push({ path: '/account/profile', label: 'My Profile' })
+  if (passwordApi) accountLinks.push({ path: '/account/password', label: 'Change Password' })
+  return <AppShell viewer={data?.viewer} sections={links} accountLinks={accountLinks}
+    groups={[{ label: 'Master Data', items: masterData }, { label: 'Configuration', items: configuration }]}
     search={search} onSearch={setSearch} onLogout={() => setConfirm(true)}>
     <Routes>
       <Route path="/" element={dashboardContent} />

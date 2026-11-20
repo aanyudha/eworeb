@@ -68,20 +68,27 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
         await evaluate("document.querySelector('#email').value='admin@example.test'; document.querySelector('#password').value='fixture-password'; document.querySelector('button[type=submit]').click()");
         await until(()=>evaluate("location.pathname==='/workspace' && document.querySelector('.kpi strong') !== null"));
         assert.equal(await evaluate("[...document.querySelectorAll('a')].some(a=>a.textContent==='Classic dashboard')"),false);
+        const group = name => `document.querySelector('button.nav-group-toggle[aria-label="${name}"]')`;
         if (mysql?.create) {
-            await evaluate("document.querySelector('nav a[href$=\"/work-orders/create\"]').click()");
-            await until(()=>evaluate("Boolean(document.querySelector('.create-wo-form button[type=submit]:not(:disabled)'))"));
-            for (const [name, value] of [['corp_id','1'],['dept_id','10'],['location_id','1'],['sublocation_id','3']]) {
-                await until(()=>evaluate(`Boolean(document.querySelector('[name=${name}] option[value="${value}"]'))`));
-                await evaluate(`{const field = document.querySelector('[name=${name}]'); field.value = '${value}'; field.dispatchEvent(new Event('change', {bubbles:true}));}`);
+            async function createInBrowser(status, title, summary) {
+                await evaluate("document.querySelector('nav a[href$=\"/work-orders/create\"]').click()");
+                await until(()=>evaluate("Boolean(document.querySelector('.create-wo-form button[type=submit]:not(:disabled)'))"));
+                for (const [name, value] of [['corp_id','1'],['dept_id','10'],['location_id','1'],['sublocation_id','3']]) {
+                    await until(()=>evaluate(`Boolean(document.querySelector('[name=${name}] option[value="${value}"]'))`));
+                    await evaluate(`{const field = document.querySelector('[name=${name}]'); field.value = '${value}'; field.dispatchEvent(new Event('change', {bubbles:true}));}`);
+                }
+                await evaluate(`{const form = document.querySelector('.create-wo-form'); form.elements.role_id.selectedIndex=1; form.elements.title.value=${JSON.stringify(title)}; form.elements.summary.value=${JSON.stringify(summary)}; form.querySelector('button[value="${status}"]').click();}`);
+                return until(()=>evaluate(String.raw`document.querySelector('.create-wo-form [role=status]')?.innerText.match(/Work Order #(\d+) ${status === 1 ? 'published' : 'saved as a draft'}/)?.[1]`));
             }
-            await evaluate("{const form = document.querySelector('.create-wo-form'); form.elements.role_id.selectedIndex=1; form.elements.title.value='Browser created WO'; form.elements.summary.value='Browser initial history'; form.querySelector('button[value=\"1\"]').click();}");
-            const confirmation = await until(()=>evaluate(String.raw`document.querySelector('.create-wo-form [role=status]')?.innerText.match(/Work Order #(\d+) published/)?.[1]`));
+            assert.ok(await createInBrowser(0, 'Browser draft WO', ''));
+            await send('Page.navigate',{url:origin+'/workspace/work-orders/drafts?q=Browser+draft+WO'});
+            await until(()=>evaluate("document.querySelector('tbody')?.innerText.includes('Browser draft WO')"));
+            const confirmation = await createInBrowser(1, 'Browser created WO', 'Browser initial history');
             await send('Page.navigate',{url:origin+'/workspace/work-orders/outgoing?q=Browser+created+WO'});
             await until(()=>evaluate("document.querySelector('tbody')?.innerText.includes('Browser created WO')"));
             await evaluate(`document.querySelector('tbody a[href$="/outgoing/${confirmation}"]').click()`);
             await until(()=>evaluate(`document.querySelector('h1')?.innerText==='Work Order #${confirmation}' && document.querySelector('tbody')?.innerText.includes('Browser initial history')`));
-            console.log('Chrome: real Create WO confirmation, Outgoing and detail/history PASS');
+            console.log('Chrome: Create Draft with blank description, Publish, Outgoing and initial history PASS');
         } else {
             assert.ok(await evaluate("document.querySelector('[aria-disabled=true][role=link][aria-label^=Create]')?.textContent.includes('publication date')"));
         }
@@ -92,7 +99,26 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
         console.log('Chrome: login goes directly to Workspace; /admin redirects; refresh keeps session');
         assert.equal(await evaluate("document.querySelectorAll('.kpi').length"),5);
         assert.equal(await evaluate("document.querySelectorAll('tbody tr').length"),10);
-        await evaluate("window.__spaDocument='same'; document.querySelector('nav[aria-label=\"Workspace navigation\"] a[href$=\"/incoming\"]').click()");
+        if (mysql) {
+            assert.deepEqual(await evaluate("[...document.querySelectorAll('.sidebar nav > a')].filter(a=>/Incoming WO|Outgoing WO/.test(a.innerText)).map(a=>a.getAttribute('href').split('/').slice(-2).join('/'))"),['work-orders/incoming','work-orders/outgoing']);
+            await evaluate(`${group('Master Data')}.focus()`);
+            assert.equal(await evaluate(`document.activeElement===${group('Master Data')}`),true);
+            await send('Input.dispatchKeyEvent',{type:'rawKeyDown',key:' ',code:'Space',windowsVirtualKeyCode:32,nativeVirtualKeyCode:32});
+            await send('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32,nativeVirtualKeyCode:32});
+            await until(()=>evaluate(`${group('Master Data')}.getAttribute('aria-expanded')==='true' && location.pathname==='/workspace'`));
+            await evaluate(`${group('Master Data')}.click(); document.querySelector('[aria-label="Toggle sidebar"]').click()`);
+            await until(()=>evaluate("document.querySelector('.shell').classList.contains('compact')"));
+            await evaluate(`${group('Configuration')}.click()`);
+            await until(()=>evaluate(`${group('Configuration')}.getAttribute('aria-expanded')==='true' && !document.querySelector('.shell').classList.contains('compact')`));
+            await evaluate("document.querySelector('[aria-label=\"Profile menu\"]').click()");
+            assert.equal(await evaluate("document.querySelector('.topbar a[href$=\"/account/profile\"]').innerText"),'My Profile');
+            assert.equal(await evaluate("document.querySelector('.sidebar a[href$=\"/account/profile\"]')"),null);
+            await send('Page.navigate',{url:origin+'/workspace/directory/departments'});
+            await until(()=>evaluate(`${group('Master Data')}?.getAttribute('aria-expanded')==='true' && document.querySelector('h1')?.innerText==='Departments'`));
+            await send('Page.navigate',{url:origin+'/workspace'});
+            await until(()=>evaluate("document.querySelector('h1')?.innerText==='Dashboard' && document.querySelector('.kpi strong') !== null"));
+        }
+        await evaluate("window.__spaDocument='same'; document.querySelector('.switches a[href$=\"/incoming\"]').click()");
         await until(()=>evaluate("location.pathname==='/workspace/incoming' && document.querySelector('h1').innerText==='Incoming WO'"));
         assert.equal(await evaluate("window.__spaDocument"),'same');
         await evaluate("history.back()");
@@ -120,15 +146,24 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
             await until(()=>evaluate("matchMedia('(max-width: 860px)').matches && document.querySelector('.topbar button').getAttribute('aria-expanded')==='false' && document.documentElement.scrollWidth<=document.documentElement.clientWidth"));
             await evaluate("document.querySelector('button[aria-label=\"Toggle sidebar\"]').click()");
             await until(()=>evaluate("document.querySelector('.shell').classList.contains('mobile-open')"));
-            await evaluate("document.querySelector('.scrim').click()");
+            if (mysql) {
+                const name = width === 820 ? 'Master Data' : 'Configuration';
+                await evaluate(`if (${group(name)}.getAttribute('aria-expanded')==='true') ${group(name)}.click()`);
+                await until(()=>evaluate(`${group(name)}.getAttribute('aria-expanded')==='false'`));
+                await evaluate(`${group(name)}.click()`);
+                await until(()=>evaluate(`${group(name)}.getAttribute('aria-expanded')==='true' && document.querySelector('.shell').classList.contains('mobile-open')`));
+                await evaluate(`${group(name)}.parentElement.querySelector('a').click()`);
+                await until(()=>evaluate("!document.querySelector('.shell').classList.contains('mobile-open')"));
+            } else await evaluate("document.querySelector('.scrim').click()");
         }
+        if (mysql) console.log('Chrome: grouped sidebar, keyboard toggle, deep link, compact, tablet/mobile and account menu PASS');
         await send('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});
         if (mysql && !mysql.replies && !mysql.create) {
             await send('Page.navigate',{url:origin+'/workspace/work-orders/create'});
             await until(()=>evaluate("document.querySelector('.create-wo-form') && document.querySelector('h1')?.innerText==='Create Work Order'"));
             assert.match(await evaluate("document.querySelector('#create-wo-status').textContent"),/posts_logs\.published_at/);
             assert.equal(await evaluate("document.querySelector('nav a[href$=\"/work-orders/create\"]') === null && document.querySelector('.create-wo-form button:not(:disabled)') === null"),true);
-            assert.equal(await evaluate("document.querySelector('[name=title]').maxLength === 500 && document.querySelector('[name=summary]').maxLength === 5000 && document.querySelector('[name=summary]').required"),true);
+            assert.equal(await evaluate("document.querySelector('[name=title]').maxLength === 500 && document.querySelector('[name=summary]').maxLength === 5000 && !document.querySelector('[name=summary]').required"),true);
             async function selectCreateField(name, value) {
                 await evaluate(`{const field = document.querySelector('[name=${name}]'); field.value = '${value}'; field.dispatchEvent(new Event('change', {bubbles: true}));}`);
             }

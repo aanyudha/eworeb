@@ -26,6 +26,11 @@ function buildLegacyFixture(mysqli $fixture, bool $create): void
             if (!preg_match('/^CREATE TABLE \x60' . $table . '\x60 /', $ddl) || !str_contains($ddl, 'ENGINE=InnoDB')) {
                 throw new RuntimeException('Unexpected legacy table definition.');
             }
+            if ($create && in_array($table, ['posts', 'posts_logs'], true) && str_contains($ddl, '`published_at`')) {
+                // Rehearse the approved ADD against the pre-change definition in the fixture only.
+                $ddl = preg_replace('/^  `published_at` datetime DEFAULT NULL,\r?\n/m', '', $ddl, 1, $removed);
+                if ($removed !== 1) throw new RuntimeException('Unexpected publication column in the schema source.');
+            }
             $fixture->query(preg_replace('/ AUTO_INCREMENT=\d+/', '', $ddl));
         }
     } finally {

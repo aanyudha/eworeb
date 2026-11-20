@@ -39,7 +39,7 @@ module.exports = async function testCreate(request, login, location, audit) {
   assert.ok([302, 303, 403].includes(noToken.status));
   for (const changes of [
     {title:'   '}, {title:'x'.repeat(501)}, {summary:'x'.repeat(5001)}, {image_description:'x'.repeat(501)},
-    {summary:'<b>markup</b>'}, {summary:'invalid for utf8mb3 😃'}, {summary:''}, {status:'2'},
+    {summary:'<b>markup</b>'}, {summary:'invalid for utf8mb3 😃'}, {status:'2'},
     {location_id:'2'}, {sublocation_id:'4'}, {sublocation_id:'2'}, {role_id:'1'},
     {published_at:'2026-11-20 08:00:00'}, {scheduled_post:'1'}, {post_image_id:'3'}, {post_image_id:'1234'},
   ]) {
@@ -76,13 +76,15 @@ module.exports = async function testCreate(request, login, location, audit) {
   assert.equal(location(await login('admin@example.test', 'fixture-password')), '/workspace');
   preview = await current();
   assert.equal(preview.canChooseScope, true);
-  const adminDraft = { title:'Admin draft fixture', summary:'Draft description', status:'0', corp_id:'2', dept_id:'20',
+  const adminDraft = { title:'Admin draft fixture', status:'0', corp_id:'2', dept_id:'20',
     location_id:'2', sublocation_id:'0', role_id: String(preview.destinationRoles[0].id) };
   assert.equal((await submit({...adminDraft, dept_id:'10'}, preview.submission.csrf.hash))[0], 422);
   [status, result] = await submit(adminDraft, (await current()).submission.csrf.hash);
   assert.equal(status, 201);
   const draft = JSON.parse(audit('create-state', String(result.id)));
   assert.deepEqual([draft.order.corp_id, draft.order.dept_id, draft.order.user_id, draft.order.status, draft.history[0].status], [2,20,1,0,0]);
+  assert.equal(draft.order.summary, null);
+  assert.equal(draft.history[0].summary, null);
   assert.ok((await (await request('/api/v1/work-orders/drafts?q=Admin+draft+fixture')).json()).items.some(row => row.id === result.id));
   assert.equal((await request('/api/v1/work-orders/outgoing/'+result.id)).status, 404);
   assert.equal((await request('/api/v1/work-orders/scheduled')).status, 503);

@@ -1,10 +1,18 @@
 # Progres migrasi EWO
 
+## Aktivasi Create biasa dan sidebar Workspace, 20 November 2026 WIB
+
+- Backup lengkap `eworeb` dipulihkan di MySQL loopback terpisah. Dua ALTER yang disetujui kemudian lulus pada TCP 3310 dengan lock yang memblokir penulis. Semua fingerprint kolom lama cocok. Jumlah 19.812 WO, 43.609 histori dan 444.035 record lintas 18 tabel sama sebelum dan sesudah. Seluruh waktu publikasi historis tetap `NULL`. [Bukti backup, restore dan DDL](LEGACY_DATABASE_ALIGNMENT.md#keputusan-pemilik-untuk-create-work-order-biasa).
+- `.env` pengembangan mengaktifkan hanya `ewo.workOrderCreateWrites`. Smoke baca-saja pada TCP 3310 membuktikan guard skema, izin akun aktif dan preview serta Workspace yang mengiklankan Create. Draft dan Publish diuji melalui Chrome pada fixture. Uji tanpa `add_post`, CSRF, scope, rollback dan referensi gambar lulus di MySQL terisolasi. Pengujian tidak menambah WO sintetis ke TCP 3310.
+- Description mengikuti validasi server CI3 yang opsional dengan maksimum 5.000 karakter. Atribut `required` pada HTML CI3 lama bertentangan dengan kontrak server. Form fixture menyimpan Draft dengan description kosong dan API juga menerima field yang absen. Destination role tetap `author`, `author1`, `author2`. Kategori New, visibilitas, status, assignment awal dan scope mempertahankan aturan biasa.
+- Sidebar tunggal menempatkan menu WO dan laporan langsung, sedangkan Master Data dan Configuration dapat dilipat dan terbuka ketika route anak aktif. My Profile dan Change Password berpindah ke menu akun. Chrome memverifikasi keyboard, deep link, compact, tablet dan mobile. Route ringkasan lama tetap tersedia. Scheduled, notifikasi subscriber dan pemilih lampiran Create tetap tertahan.
+- PHP lint, PHPUnit 9 tes dan 35 assertion, TypeScript, Vite, serta tiga suite MySQL dan Chrome lulus. Suite `--wo-create`, `--wo-replies` dan standar mencakup Dashboard tunggal, sesi dan CSRF, penolakan lintas corporation, rollback, lampiran, Reports PDF A3/XLSX dengan fallback subkategori, dan Knowledge Center.
+
 ## Create Work Order biasa, 20 November 2026 WIB
 
 - Audit membaca tiga dump CI3, seluruh ref Git lokal, serta metadata TCP 3310. CI3 menulis `published_at` saat Create biasa maupun terjadwal. Definisi dan nilai historis tidak ditemukan. Kontrak kompatibilitas `DATETIME NULL DEFAULT NULL` pada `posts` dan `posts_logs` diuji di MySQL sementara. [Paket keputusan](LEGACY_DATABASE_ALIGNMENT.md#keputusan-pemilik-untuk-create-work-order-biasa) memuat dua ALTER untuk review, dampak, backup dan rollback.
 - API Create biasa memeriksa CSRF, `add_post`, akun aktif, scope, role tujuan, relasi lokasi, dan status awal. Publikasi yang diizinkan tampil di Outgoing dengan histori awal. Draft tampil di Drafts. MySQL terisolasi membuktikan rollback saat INSERT histori maupun relasi gambar ditolak, dan menolak definisi kolom yang berbeda dari kontrak. React memakai form existing dan hanya menawarkan submit ketika gate serta skema memenuhi syarat.
-- TCP 3310 tetap tanpa DDL atau DML Create, `ewo.workOrderCreateWrites` tetap false, dan sakelar lain tidak diubah. Scheduled tetap menunggu `intervale`, histori dan verifikasi cron. [Kesiapan operasi](OPERATIONAL_READINESS.md#create-wo-dan-keterbatasan-kompatibilitas) mencatat batas fitur dan syarat aktivasi.
+- Pada tahap ini, TCP 3310 masih tanpa DDL atau DML Create dan `ewo.workOrderCreateWrites` masih false. Scheduled tetap menunggu `intervale`, histori dan verifikasi cron.
 
 ## Kompatibilitas akhir dan kesiapan operasi, 19 November 2026 WIB
 

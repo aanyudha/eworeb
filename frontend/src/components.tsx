@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { Activity, Bell, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, LayoutDashboard, LogOut, Menu, Search, X } from 'lucide-react'
+import { Activity, Bell, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Database, LayoutDashboard, LogOut, Menu, Search, Settings, X } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table'
 
@@ -18,42 +18,74 @@ export type DashboardData = {
 }
 const number = new Intl.NumberFormat()
 
-type WorkspaceNavItem = { path: string; label: string; preserveSearch?: boolean; unavailable?: string }
+export type WorkspaceNavItem = { path: string; label: string; unavailable?: string }
+export type WorkspaceNavGroup = { label: string; items: WorkspaceNavItem[] }
 
-export function Sidebar({ sections, onNavigate }: { sections: WorkspaceNavItem[]; onNavigate: () => void }) {
+function WorkspaceLink({ item, onNavigate }: { item: WorkspaceNavItem; onNavigate: () => void }) {
+  const { path, label, unavailable } = item
+  return unavailable
+    ? <div className="nav-unavailable" role="link" aria-disabled="true" aria-label={label + '. ' + unavailable} title={unavailable}><Activity size={17} /><span>{label}<small>{unavailable}</small></span></div>
+    : <NavLink to={path} aria-label={label} title={label} onClick={onNavigate}><Activity size={17} /><span>{label}</span></NavLink>
+}
+
+function NavigationGroup({ group, onNavigate, expandSidebar }: {
+  group: WorkspaceNavGroup; onNavigate: () => void; expandSidebar: () => void;
+}) {
+  const { pathname } = useLocation()
+  const active = group.items.some(({ path }) => pathname === path || pathname.startsWith(path + '/'))
+  const [open, setOpen] = useState(active)
+  const id = useId()
+  useEffect(() => { if (active) setOpen(true) }, [active, pathname])
+  const Icon = group.label === 'Master Data' ? Database : Settings
+  return <div className="nav-group">
+    <button className="nav-group-toggle" type="button" aria-label={group.label} aria-expanded={open} aria-controls={id} title={group.label}
+      onClick={() => { setOpen(!open); if (!open) expandSidebar() }}>
+      <Icon size={17} aria-hidden="true" /><span>{group.label}</span><ChevronDown className="nav-chevron" size={15} aria-hidden="true" />
+    </button>
+    <div id={id} className="nav-group-children" hidden={!open}>
+      {group.items.map(item => <WorkspaceLink key={item.path} item={item} onNavigate={onNavigate} />)}
+    </div>
+  </div>
+}
+
+export function Sidebar({ sections, groups, onNavigate, expandSidebar }: {
+  sections: WorkspaceNavItem[]; groups: WorkspaceNavGroup[]; onNavigate: () => void; expandSidebar: () => void;
+}) {
   const { search } = useLocation()
   return <aside className="sidebar" id="workspace-navigation">
     <div className="brand"><span className="brand-mark">{document.getElementById('root')?.dataset.brandLogo ? <img className="brand-logo" src={document.getElementById('root')!.dataset.brandLogo} alt="" /> : <Activity size={20} />}</span><span>EWO <b>Reborn</b><small>Operations workspace</small></span></div>
     <p className="nav-caption">WORKSPACE</p>
     <nav aria-label="Workspace navigation">
-      <NavLink to={{ pathname: "/", search }} end onClick={onNavigate}><LayoutDashboard size={17} />Dashboard</NavLink>
-      {sections.map(({ path, label, unavailable, preserveSearch = true }) => unavailable
-        ? <div key={path} className="nav-unavailable" role="link" aria-disabled="true" aria-label={label + '. ' + unavailable} title={unavailable}><Activity size={17} /><span>{label}<small>{unavailable}</small></span></div>
-        : <NavLink key={path} to={{ pathname: path, search: preserveSearch ? search : undefined }} onClick={onNavigate}><Activity size={17} />{label}</NavLink>)}
+      <NavLink to={{ pathname: "/", search }} aria-label="Dashboard" title="Dashboard" end onClick={onNavigate}><LayoutDashboard size={17} /><span>Dashboard</span></NavLink>
+      {sections.map(item => <WorkspaceLink key={item.path} item={item} onNavigate={onNavigate} />)}
+      {groups.filter(group => group.items.length > 0).map(group =>
+        <NavigationGroup key={group.label} group={group} onNavigate={onNavigate} expandSidebar={expandSidebar} />)}
     </nav>
   </aside>
 }
 
-export function Topbar({ viewer, search, onSearch, toggle, expanded, onLogout }: {
+export function Topbar({ viewer, search, onSearch, toggle, expanded, accountLinks, onLogout }: {
   viewer?: DashboardData['viewer']; search: string; onSearch: (value: string) => void;
-  toggle: () => void; expanded: boolean; onLogout: () => void;
+  toggle: () => void; expanded: boolean; accountLinks: WorkspaceNavItem[]; onLogout: () => void;
 }) {
   const name = viewer?.name || viewer?.role || 'Account'
+  const profile = useRef<HTMLDetailsElement>(null)
   return <header className="topbar">
     <button className="icon-button" type="button" aria-label="Toggle sidebar" aria-expanded={expanded} aria-controls="workspace-navigation" onClick={toggle}><Menu size={20} /></button>
     <label className="search"><Search size={17} /><input type="search" placeholder="Search dashboard rows" aria-label="Search dashboard rows" value={search} onChange={e => onSearch(e.target.value)} /></label>
     <div className="topbar-actions">
       <details className="menu"><summary className="icon-button" aria-label="Notifications"><Bell size={19} /></summary><div className="popover"><strong>Notifications</strong><p>Notifications are not available in this workspace.</p></div></details>
-      <details className="menu"><summary className="profile" aria-label="Profile menu"><span className="avatar">{name[0].toUpperCase()}</span><span className="profile-name">{name}<small>{viewer?.role}</small></span><ChevronDown size={15} /></summary>
-        <div className="popover"><button type="button" onClick={onLogout}><LogOut size={16} /> Sign out</button></div>
+      <details className="menu" ref={profile}><summary className="profile" aria-label="Profile menu"><span className="avatar">{name[0].toUpperCase()}</span><span className="profile-name">{name}<small>{viewer?.role}</small></span><ChevronDown size={15} /></summary>
+        <div className="popover">{accountLinks.map(({ path, label }) => <NavLink key={path} to={path} onClick={() => { if (profile.current) profile.current.open = false }}>{label}</NavLink>)}
+          <button type="button" onClick={onLogout}><LogOut size={16} /> Sign out</button></div>
       </details>
     </div>
   </header>
 }
 
-export function AppShell({ sections, viewer, search, onSearch, onLogout, children }: {
-  sections: WorkspaceNavItem[]; viewer?: DashboardData['viewer']; search: string;
-  onSearch: (value: string) => void; onLogout: () => void; children: ReactNode;
+export function AppShell({ sections, groups, accountLinks, viewer, search, onSearch, onLogout, children }: {
+  sections: WorkspaceNavItem[]; groups: WorkspaceNavGroup[]; accountLinks: WorkspaceNavItem[];
+  viewer?: DashboardData['viewer']; search: string; onSearch: (value: string) => void; onLogout: () => void; children: ReactNode;
 }) {
   const [compact, setCompact] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -64,11 +96,11 @@ export function AppShell({ sections, viewer, search, onSearch, onLogout, childre
     query.addEventListener('change', change)
     return () => query.removeEventListener('change', change)
   }, [])
-  return <div className={"shell" + (compact ? " compact" : "") + (mobileOpen ? " mobile-open" : "")}>
+  return <div className={"shell" + (compact && !mobile ? " compact" : "") + (mobileOpen ? " mobile-open" : "")}>
     {mobileOpen && <button className="scrim" aria-label="Close sidebar" onClick={() => setMobileOpen(false)} />}
-    <Sidebar sections={sections} onNavigate={() => setMobileOpen(false)} />
+    <Sidebar sections={sections} groups={groups} onNavigate={() => setMobileOpen(false)} expandSidebar={() => { if (!mobile) setCompact(false) }} />
     <div className="workspace">
-      <Topbar viewer={viewer} search={search} onSearch={onSearch} onLogout={onLogout}
+      <Topbar viewer={viewer} search={search} onSearch={onSearch} accountLinks={accountLinks} onLogout={onLogout}
         expanded={mobile ? mobileOpen : !compact} toggle={() => mobile ? setMobileOpen(v => !v) : setCompact(v => !v)} />
       <main className="content">{children}</main>
     </div>

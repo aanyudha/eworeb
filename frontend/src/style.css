@@ -47,11 +47,23 @@ h1, h2, h3, p { margin: 0; }
 }
 .sidebar nav a:is(:hover, .active) { background: #29466e; color: #fff; text-decoration: none; }
 .sidebar nav a.active { box-shadow: inset 3px 0 #91bcff; }
+.sidebar nav :is(a, button):focus-visible { outline: 2px solid #a4c8ff; outline-offset: -2px; }
+.nav-group { border-top: 1px solid #36516f; margin-top: 6px; padding-top: 6px; }
+.nav-group-toggle { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 42px; padding: 0 11px; border: 0; border-radius: 7px; background: transparent; color: #d0ddef; font-size: 14px; font-weight: 600; text-align: left; }
+.nav-group-toggle:is(:hover, [aria-expanded=true]) { background: #29466e; color: #fff; }
+.nav-group-toggle svg { flex-shrink: 0; }
+.nav-chevron { margin-left: auto; }
+.nav-group-toggle[aria-expanded=true] .nav-chevron { transform: rotate(180deg); }
+.nav-group-children { border-left: 1px solid #36516f; margin: 4px 0 0 18px; padding-left: 5px; }
+.sidebar .nav-group-children a { min-height: 37px; }
 .shell.compact { grid-template-columns: 64px minmax(0, 1fr); }
 .compact .sidebar { padding-inline: 9px; }
 .compact .brand { margin-inline: 4px; }
 .compact .brand > span:last-child, .compact .nav-caption { display: none; }
 .compact .sidebar nav a { gap: 0; font-size: 0; justify-content: center; }
+.compact .nav-group-toggle { justify-content: center; padding-inline: 0; }
+.compact .nav-group-toggle :is(span, .nav-chevron) { display: none; }
+.compact .nav-group-children { margin-left: 0; padding-left: 0; border-left: 0; }
 
 .topbar { display: flex; gap: 16px; align-items: center; min-height: 64px; position: sticky; top: 0; z-index: 2; background: var(--white); border-bottom: 1px solid var(--line); padding: 0 28px; }
 .icon-button { width: 36px; height: 36px; display: inline-grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: #304761; padding: 0; }

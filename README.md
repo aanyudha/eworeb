@@ -4,13 +4,14 @@
 
 Login POST sukses mengarah langsung ke Workspace React. Route /admin menjaga admin_panel dan batas role lalu mengarah ke Workspace. View klasik disimpan sebagai referensi regresi. Public Knowledge Center, login, dashboard API, CSRF, dan sesi tetap tersedia.
 
-Penulisan Work Order hanya aktif bila ewo.workOrderWrites=true pada instance yang disetujui. Salinan eworeb port 3310 dipertahankan baca-saja untuk pekerjaan ini. Mode --wo-replies memakai datadir sementara, port loopback berbeda, SHOW CREATE baca-saja terhadap definisi yang diperlukan, dan hanya input terkontrol. Jalankan dari Windows PowerShell setelah build aset:
+Create Work Order biasa memakai sakelar `ewo.workOrderCreateWrites` yang independen. Balasan, publikasi Draft existing dan unggahan Incoming memakai `ewo.workOrderWrites`. Mode `--wo-create` dan `--wo-replies` memakai datadir sementara, port loopback berbeda dan data fixture. Jalankan dari Windows PowerShell setelah build aset berikut.
 
 ~~~powershell
 $env:EWO_TEST_SUBFOLDER = '1'
 $env:EWO_LEGACY_SOURCE = 'C:\xampp8212\htdocs\ewo'
 $env:EWO_TEST_BROWSER = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
 node tests/integration/mysql-workspace.cjs 'C:\xampp8512\php\php.exe' 'C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqld.exe' --wo-replies
+node tests/integration/mysql-workspace.cjs 'C:\xampp8512\php\php.exe' 'C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqld.exe' --wo-create
 ~~~
 
 File media lama dapat dipasang sebagai ewo.workOrderMediaRoot di luar document root dengan subfolder images dan audios serta extension PHP fileinfo. Jangan mengarahkan folder unggahan legacy ke HTTP publik untuk mencoba fitur. Referensi yang file-nya belum tersedia tetap tampil tanpa tautan.
@@ -19,11 +20,14 @@ File media lama dapat dipasang sebagai ewo.workOrderMediaRoot di luar document r
 
 Draft biasa dapat dipublikasikan dari daftar oleh pengguna yang memiliki akses ke Draft tersebut. Detail Incoming mendukung lampiran tambahan sesuai tipe WO dan izin balasan. Daftar Master Data menyediakan tambah dan edit dengan validasi relasi. Administrator dapat menambah dan mengedit Users atau Administrators, mengubah status akun, dan menyimpan izin role yang benar-benar ditulis CI3. My profile menampilkan data akun sendiri. Change password meminta kata sandi saat ini.
 
-Konfigurasi lokal mengikuti tiga sakelar:
+Sidebar Workspace menampilkan satu link daftar per arah WO. Master Data dan Configuration menampilkan halaman sesuai izin, dan My Profile serta Change Password ada di menu akun.
+
+Sakelar konfigurasi penulisan tersedia di bawah ini.
 
 | Pengaturan | Operasi |
 | --- | --- |
 | `ewo.workOrderWrites` | Balasan, publikasi Draft biasa dan lampiran pada Incoming yang memenuhi syarat |
+| `ewo.workOrderCreateWrites` | Create Draft atau Publish WO biasa setelah verifikasi skema dan persetujuan pemilik |
 | `ewo.masterDataWrites` | Tambah dan edit enam menu Master Data |
 | `ewo.accountWrites` | Kelola akun dan izin, ubah kata sandi sendiri serta pengaturan aplikasi yang didukung |
 
@@ -33,7 +37,7 @@ Status dan batas setiap modul tersedia di [matriks parity](docs/FEATURE_PARITY_M
 
 ## Kesiapan operasional
 
-Reports In/Out dapat dibuka oleh pemegang `add_post`. Pada skema legacy yang tidak memiliki subkategori, tabel dan ekspor halaman aktif menampilkan “Subcategory unavailable”. Create Work Order tampil nonaktif sambil menunggu pembuktian kontrak publikasi awal CI3.
+Reports In/Out dapat dibuka oleh pemegang `add_post`. Pada skema legacy yang tidak memiliki subkategori, tabel dan ekspor halaman aktif menampilkan “Subcategory unavailable”. Create biasa aktif di `.env` lokal pengembangan `eworeb` TCP 3310. Ketiga sakelar tulis lain tetap `false`. Riwayat backup, restore dan verifikasi tersedia di [audit skema](docs/LEGACY_DATABASE_ALIGNMENT.md#keputusan-pemilik-untuk-create-work-order-biasa).
 
 Mount arsip CI3 lokal bersifat baca-saja. Avatar sendiri, logo dan favicon dari unggahan baru membutuhkan `ewo.accountMediaRoot` privat dan sakelar akun yang disetujui. Avatar memakai GD untuk crop JPEG 240 × 240. Email profil membutuhkan kata sandi saat ini dan hanya dapat berubah ketika email verification legacy nonaktif. [Kesiapan operasi dan checklist persetujuan](docs/OPERATIONAL_READINESS.md)
 

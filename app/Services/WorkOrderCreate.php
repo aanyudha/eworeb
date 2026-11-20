@@ -67,7 +67,7 @@ final class WorkOrderCreate
         $entry = [
             'lang_id' => 1, 'visibility' => 1, 'post_type' => 'post', 'category_id' => 1,
             'title' => $this->text($input['title'] ?? null, 'title', 500, true),
-            'summary' => $this->text($input['summary'] ?? null, 'description', 5000, true),
+            'summary' => array_key_exists('summary', $input) ? $this->text($input['summary'], 'description', 5000) : null,
             'image_description' => $this->text($input['image_description'] ?? '', 'image description', 500),
             'corp_id' => $corp, 'dept_id' => $dept, 'user_id' => (int) $viewer['id'], 'role_id' => $role,
             'location_id' => $location, 'sublocation_id' => $sublocation, 'status' => (int) $status,
