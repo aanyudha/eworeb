@@ -95,6 +95,13 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
         $db->query("UPDATE users SET username = SUBSTRING_INDEX(email, '@', 1), first_name = 'Fixture'");
         $db->query("UPDATE roles_permissions SET categories=1, locations=1, departments=1, users=1 WHERE role IN ('engineering','gm')");
         $db->query("UPDATE roles_permissions SET manage_all_posts=1 WHERE role='corpadmin'");
+        if (!$replies) {
+            $db->query("INSERT INTO roles_permissions (role,role_name,admin_panel,add_post) VALUES
+                ('author','Engineering',1,0),('author1','IT',1,0),('author2','Housekeeping',1,0),('author3','Other destination',1,0)");
+            $db->query("INSERT INTO users (id,username,email,password,status,role,role_id,corp_id,dept_id)
+                SELECT 250,'no-add-post','no-add-post@example.test',u.password,1,r.role,r.id,'1','10'
+                FROM users u JOIN roles_permissions r ON r.role='author3' WHERE u.id=1");
+        }
         if ($replies) {
             $db->query("UPDATE posts SET title='Fixture WO', location_id=1, summary='Original request',
                 image_default='uploads/images/fixture.png'");

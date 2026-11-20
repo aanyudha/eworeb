@@ -41,6 +41,8 @@ $routes->get('api/v1/dashboard', 'AdminController::workspaceDashboard', ['filter
 
 $routes->get('api/v1/work-orders/(incoming|outgoing)', 'WorkOrderController::index/$1',
     ['filter' => 'ewo-admin:admin_panel,add_post,json']);
+$routes->get('api/v1/work-orders/create/preview', 'WorkOrderCreateController::preview',
+    ['filter' => 'ewo-admin:admin_panel,add_post,json']);
 
 
 $routes->get('api/v1/admin-directory/(categories|subcategories|locations|sublocations|departments|corporations|users|administrators|roles)',

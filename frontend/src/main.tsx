@@ -9,6 +9,7 @@ import {
 import './style.css'
 import KnowledgeAdmin from './KnowledgeAdmin'
 import WorkOrders from './WorkOrders'
+import WorkOrderCreate from './WorkOrderCreate'
 import WorkOrderDetail from './WorkOrderDetail'
 import AdminDirectory from './AdminDirectory'
 import AccountPassword from './AccountPassword'
@@ -16,7 +17,7 @@ import WorkspaceSettings from './WorkspaceSettings'
 import ProfileAndBranding from './ProfileAndBranding'
 
 const mount = document.getElementById('root')!
-const { workspace, dashboardApi, login, logout, workOrdersApi, reportsApi, workOrderRole, knowledgeEditor, scheduleAccess, replyAccess, passwordApi, profileApi, settingsApi, visualApi, createWorkOrderAccess } = mount.dataset
+const { workspace, dashboardApi, login, logout, workOrdersApi, reportsApi, workOrderRole, knowledgeEditor, scheduleAccess, replyAccess, passwordApi, profileApi, settingsApi, visualApi, createWorkOrderPreview } = mount.dataset
 const directoryViews = JSON.parse(mount.dataset.directoryViews || '[]') as { path: string; label: string; endpoint: string }[]
 const queryClient = new QueryClient()
 const formats = new Intl.NumberFormat()
@@ -125,8 +126,8 @@ function Workspace() {
   const links: { path: string; label: string; preserveSearch?: boolean; unavailable?: string }[] = sections.filter(section => data?.summary[section.key]).map(({path, label}) => ({ path: String(path), label: String(label) }))
   const knowledgeAdmin = knowledgeEditor === 'enabled'
   if (knowledgeAdmin) links.push({ path: '/knowledge', label: 'Knowledge Base', preserveSearch: false })
-  if (createWorkOrderAccess === 'enabled') links.push(
-    { path: '/work-orders/create', label: 'Create Work Order', unavailable: 'Legacy publication date is unavailable' })
+  if (createWorkOrderPreview) links.push(
+    { path: '/work-orders/create', label: 'Create Work Order', unavailable: 'Legacy publication date (published_at) requires verification.' })
   if (workOrdersApi) links.push(
     { path: '/work-orders/incoming', label: 'Incoming list', preserveSearch: false },
     { path: '/work-orders/outgoing', label: 'Outgoing list', preserveSearch: false },
@@ -148,6 +149,7 @@ function Workspace() {
     <Routes>
       <Route path="/" element={dashboardContent} />
       {sections.map(section => <Route key={section.path} path={section.path} element={dashboardContent} />)}
+      {createWorkOrderPreview && <Route path="/work-orders/create" element={<WorkOrderCreate endpoint={createWorkOrderPreview} />} />}
       {workOrdersApi && <Route path="/work-orders/incoming" element={<WorkOrders endpoint={workOrdersApi} direction="incoming" role={Number(workOrderRole)} />} />}
       {workOrdersApi && <Route path="/work-orders/outgoing" element={<WorkOrders endpoint={workOrdersApi} direction="outgoing" role={Number(workOrderRole)} />} />}
       {workOrdersApi && <Route path="/work-orders/incoming/:id" element={<WorkOrderDetail endpoint={workOrdersApi} direction="incoming" replyEnabled={replyAccess === 'enabled'} />} />}

@@ -19,7 +19,9 @@
      <?php if (isset($branding['logo'])): ?>
      data-brand-logo="<?= esc($branding['logo'], 'attr') ?>"
      <?php endif; ?>
-     data-create-work-order-access="<?= $createWorkOrderAccess ? 'enabled' : 'disabled' ?>"
+     <?php if ($createWorkOrderAccess): ?>
+     data-create-work-order-preview="<?= esc(site_url('api/v1/work-orders/create/preview'), 'attr') ?>"
+     <?php endif; ?>
      data-profile-api="<?= esc(site_url('api/v1/account/profile'), 'attr') ?>"
      <?php if ($settingsAccess): ?>
      data-settings-api="<?= esc(site_url('api/v1/settings/application'), 'attr') ?>"

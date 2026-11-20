@@ -1,13 +1,37 @@
 const assert = require('node:assert/strict')
 
 module.exports = async function testWorkOrders(request, login, location) {
+  const createPreview = '/api/v1/work-orders/create/preview'
   assert.equal((await request('/api/v1/work-orders/incoming')).status, 401)
+  assert.equal((await request(createPreview)).status, 401)
+  assert.equal(location(await login('no-add-post@example.test', 'fixture-password')), '/workspace')
+  assert.equal((await request(createPreview)).status, 403)
+  assert.doesNotMatch(await (await request('/workspace')).text(), /data-create-work-order-preview/)
+  await request('/logout')
   assert.equal(location(await login('staff@example.test', 'fixture-password')), '/workspace')
   assert.equal((await request('/api/v1/work-orders/outgoing')).status, 403)
   await request('/logout')
 
   for (const [account, corp] of [['admin', null], ['corpadmin', 1], ['gm', 2], ['engineering', 1], ['employee', 1]]) {
     assert.equal(location(await login(account+'@example.test', 'fixture-password')), '/workspace')
+    if (['admin', 'corpadmin', 'employee'].includes(account)) {
+      const result = await request(createPreview + '?corp_id=2&dept_id=20')
+      assert.equal(result.status, 200)
+      assert.match(result.headers.get('cache-control'), /no-store/)
+      const preview = await result.json()
+      assert.match(preview.reason, /posts_logs\.published_at/)
+      assert.equal(preview.canChooseScope, account === 'admin')
+      assert.equal(preview.canSchedule, account !== 'employee')
+      assert.deepEqual(preview.destinationRoles.map(row => row.name), ['Engineering', 'IT', 'Housekeeping'])
+      assert.equal(preview.category.name, 'New')
+      if (corp === null) {
+        assert.deepEqual(preview.corporations.map(row => Number(row.id)), [1, 2])
+      } else {
+        assert.deepEqual(preview.corporations.map(row => Number(row.id)), [1])
+        assert.deepEqual(preview.departments.map(row => Number(row.id)), [10])
+        assert.ok(preview.locations.every(row => Number(row.corp_id) === 1))
+      }
+    }
     for (const direction of ['incoming', 'outgoing']) {
       const uri = '/api/v1/work-orders/' + direction
       const response = await request(uri + '?per_page=2')
@@ -38,6 +62,7 @@ module.exports = async function testWorkOrders(request, login, location) {
     await request('/logout')
   }
 
+  console.log('Create WO preview: permission, session scope, destination roles and schema blocker PASS')
   assert.equal(location(await login('other@example.test', 'fixture-password')), '/workspace')
   assert.equal((await request('/api/v1/work-orders/incoming')).status, 403)
   await request('/logout')

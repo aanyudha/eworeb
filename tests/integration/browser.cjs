@@ -12,8 +12,12 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
     const prefix=new URL(origin).pathname.replace(/\/$/,'');
     let socket, seq = 0;
     const pending = new Map(), errors = [];
+    const requestTimeout = 15000;
     async function until(fn) {
         for (let i=0; i<120; i++) {
+            if (chrome.exitCode !== null || chrome.signalCode !== null || socket?.readyState === WebSocket.CLOSED) {
+                throw Error('Browser exited before the smoke test completed');
+            }
             try { const result=await fn(); if (result) return result; } catch {}
             await sleep(100);
         }
@@ -22,7 +26,11 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
     function send(method, params={}) {
         return new Promise((resolve,reject)=>{
             const id=++seq;
-            pending.set(id,{resolve,reject});
+            const timer=setTimeout(()=>{
+                pending.delete(id);
+                reject(Error('DevTools request timed out: '+method));
+            },requestTimeout);
+            pending.set(id,{resolve,reject,timer});
             socket.send(JSON.stringify({id,method,params}));
         });
     }
@@ -34,13 +42,15 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
     }
     try {
         const info=await until(()=>fs.readFile(path.join(profile,'DevToolsActivePort'),'utf8'));
-        const targets=await until(async()=>await(await fetch('http://127.0.0.1:'+info.split(/\s+/)[0]+'/json')).json());
+        const targets=await until(async()=>await(await fetch('http://127.0.0.1:'+info.split(/\s+/)[0]+'/json', {signal:AbortSignal.timeout(1000)})).json());
         socket=new WebSocket(targets.find(t=>t.type==='page').webSocketDebuggerUrl);
         await new Promise((resolve,reject)=>{socket.onopen=resolve;socket.onerror=reject;});
         socket.onmessage=event=>{
             const msg=JSON.parse(event.data);
             if (msg.id) {
                 const call=pending.get(msg.id);pending.delete(msg.id);
+                if (!call) return;
+                clearTimeout(call.timer);
                 if(msg.error)call.reject(Error(msg.error.message));else call.resolve(msg.result);
             }
             if (msg.method==='Runtime.exceptionThrown') errors.push(msg.params.exceptionDetails.exception?.description ?? msg.params.exceptionDetails.text);
@@ -97,6 +107,22 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
         }
         await send('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});
         if (process.env.EWO_HTTP_MYSQL_FIXTURE && !JSON.parse(process.env.EWO_HTTP_MYSQL_FIXTURE).replies) {
+            await send('Page.navigate',{url:origin+'/workspace/work-orders/create'});
+            await until(()=>evaluate("document.querySelector('.create-wo-form') && document.querySelector('h1')?.innerText==='Create Work Order'"));
+            assert.match(await evaluate("document.querySelector('#create-wo-status').textContent"),/posts_logs\.published_at/);
+            assert.equal(await evaluate("document.querySelector('nav a[href$=\"/work-orders/create\"]') === null && document.querySelector('.create-wo-form button:not(:disabled)') === null"),true);
+            assert.equal(await evaluate("document.querySelector('[name=title]').maxLength === 500 && document.querySelector('[name=summary]').maxLength === 5000 && document.querySelector('[name=summary]').required"),true);
+            async function selectCreateField(name, value) {
+                await evaluate(`{const field = document.querySelector('[name=${name}]'); field.value = '${value}'; field.dispatchEvent(new Event('change', {bubbles: true}));}`);
+            }
+            await selectCreateField('corp_id', '1');
+            await until(()=>evaluate("document.querySelector('[name=dept_id]').textContent.includes('Engineering One')"));
+            await selectCreateField('location_id', '1');
+            await until(()=>evaluate("document.querySelector('[name=sublocation_id]').textContent.includes('Site One Room')"));
+            assert.equal(await evaluate("document.querySelector('[name=sublocation_id]').options.length"),2);
+            await selectCreateField('corp_id', '2');
+            assert.equal(await evaluate("document.querySelector('[name=location_id]').value === '' && document.querySelector('[name=sublocation_id]').disabled && document.querySelector('[name=dept_id]').textContent.includes('Engineering Two')"),true);
+            console.log('Chrome: Create WO preview scopes dependent choices without a save action');
             await evaluate("document.querySelector('nav a[href*=\"/work-orders/incoming\"]').click()");
             await until(()=>evaluate("document.querySelector('h1')?.innerText==='Incoming Work Orders' && document.querySelector('tbody')?.innerText.includes('Fixture WO')"));
             await evaluate("[...document.querySelectorAll('nav[aria-label=\"Work order pages\"] button')].find(b=>b.textContent==='Next').click()");
@@ -272,6 +298,7 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
             await Promise.race([send('Browser.close'),sleep(1000)]).catch(()=>{});
             socket.close();
         }
+        for (const call of pending.values()) clearTimeout(call.timer);
         if(chrome.exitCode===null) chrome.kill();
     }
 };
