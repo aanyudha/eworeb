@@ -26,8 +26,10 @@ Sakelar konfigurasi penulisan tersedia di bawah ini.
 
 | Pengaturan | Operasi |
 | --- | --- |
-| `ewo.workOrderWrites` | Balasan, publikasi Draft biasa dan lampiran pada Incoming yang memenuhi syarat |
+| `ewo.workOrderWrites` | Balasan, publikasi Draft biasa, publikasi manual Scheduled yang valid, dan lampiran Incoming yang memenuhi syarat |
 | `ewo.workOrderCreateWrites` | Create Draft atau Publish WO biasa setelah verifikasi skema dan persetujuan pemilik |
+| `ewo.scheduledWorkOrderCreates` | Menampilkan pengaturan jadwal di Create Work Order untuk pemegang `add_post` dan `manage_all_posts` ketika Create dan skema siap |
+| `ewo.scheduledWorkOrderWorker` | Mengizinkan perintah CLI memproses WO pada menit jadwal sesuai waktu database |
 | `ewo.masterDataWrites` | Tambah dan edit enam menu Master Data |
 | `ewo.accountWrites` | Kelola akun dan izin, ubah kata sandi sendiri serta pengaturan aplikasi yang didukung |
 
@@ -36,6 +38,8 @@ Semua sakelar default `false`. Uji mutasi di instance MySQL terisolasi. Untuk la
 Status dan batas setiap modul tersedia di [matriks parity](docs/FEATURE_PARITY_MATRIX.md). Rincian tiga kolom penghambat tersedia di [audit schema legacy](docs/LEGACY_DATABASE_ALIGNMENT.md).
 
 ## Kesiapan operasional
+
+Scheduled WO tersedia di sidebar utama dan di `/workspace/work-orders/scheduled`. Buat jadwal lewat formulir Create Work Order dengan memilih Schedule Work Order, mengisi tanggal publikasi dan interval hari. Daftar menggunakan kriteria Published CI3. Jadwal historis yang tidak diketahui tampil sebagai **Schedule unavailable**. Pembuatan jadwal aktif pada pengembangan dan worker tetap nonaktif. [Checklist untuk aktivasi worker](docs/OPERATIONAL_READINESS.md#scheduled-wo-dan-aktivasi-worker).
 
 Reports In/Out dapat dibuka oleh pemegang `add_post`. Pada skema legacy yang tidak memiliki subkategori, tabel dan ekspor halaman aktif menampilkan “Subcategory unavailable”. Create biasa aktif di `.env` lokal pengembangan `eworeb` TCP 3310. Ketiga sakelar tulis lain tetap `false`. Riwayat backup, restore dan verifikasi tersedia di [audit skema](docs/LEGACY_DATABASE_ALIGNMENT.md#keputusan-pemilik-untuk-create-work-order-biasa).
 

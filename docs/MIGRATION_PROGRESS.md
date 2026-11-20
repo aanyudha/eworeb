@@ -1,5 +1,11 @@
 # Progres migrasi EWO
 
+## Scheduled WO pada pengembangan, 20 November 2026 WIB
+
+- Scheduled WO punya tautan langsung di sidebar React serta daftar, detail, histori dan lampiran scoped. Form Create yang sama menyediakan tanggal publikasi dan interval hari untuk pemegang izin. Draft tetap mengikuti status yang dikirim, sementara daftar Scheduled mengikuti kriteria Published CI3.
+- Dua ALTER yang disetujui menambah `intervale` pada `posts` dan `posts_logs` di `eworeb` TCP 3310 sesudah backup dan rehearsal restore. Seluruh 19 tabel, 444.040 record, jumlah dan fingerprint kolom lama terverifikasi. Lima template dan 43 histori Scheduled tetap tidak memiliki tanggal dan interval terverifikasi. [Bukti dan pemulihan](LEGACY_DATABASE_ALIGNMENT.md#kompatibilitas-scheduled-wo-pada-pengembangan).
+- `ewo.scheduledWorkOrderCreates` aktif. Smoke TCP 3310 memverifikasi sidebar, preview Create biasa dan terjadwal, serta daftar dan detail historis dengan transaksi baca-saja. Pengujian tulis menggunakan fixture MySQL. Recurrence mengikuti menit jatuh tempo CI3 dan memakai row lock serta transaksi untuk occurrence, histori dan tanggal berikutnya. Fixture mencakup dua worker serentak dan rollback. Worker dan cron pengembangan tetap nonaktif. [Checklist worker](OPERATIONAL_READINESS.md#scheduled-wo-dan-aktivasi-worker).
+
 ## Cutover Knowledge Base MySQL pengembangan, 20 November 2026 WIB
 
 - Backup `eworeb` terbaru lulus restore pada MySQL terisolasi. Setelah jumlah dan fingerprint katalog sumber cocok, `kb_articles` menjadi satu-satunya tabel baru dan `.env` lokal beralih ke `knowledgebase.backend = mysql`. Katalog JSON efektif berisi nol artikel. Importer menghasilkan nol baris; manifest sumber merekam file yang absen.

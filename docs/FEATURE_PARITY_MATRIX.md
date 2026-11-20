@@ -20,13 +20,13 @@
 | Change password | Write verified on isolated MySQL | Current password wajib dan hash baru kompatibel dengan login legacy. |
 | Application settings dan Visual Settings | Write verified on isolated MySQL | Timezone, field teks aktif, logo raster dan favicon PNG untuk login serta Workspace. Email Settings dan konfigurasi HTML masih tertunda. |
 | Create WO biasa dan media | Enabled on development TCP 3310, writes verified on isolated MySQL | Description opsional, Draft/Publish, histori, pemilih utama dan tambahan, upload katalog privat saat root tersedia, validasi scope, CSRF dan rollback. Notifikasi subscriber tidak tersedia pada form aktif CI3. |
-| Scheduled | Recurrence implemented in isolation, runtime disabled | CI3 minute matching, status, assignment, tanggal kejadian dan histori. DDL `intervale` hanya untuk fixture. Penerimaan kebijakan data historis dan cron masih terbuka. |
+| Scheduled WO | Menu and authoring active on development TCP 3310 | Daftar Published, detail dan histori mengikuti izin dan scope. Pembuatan melalui Create Work Order. Tanggal dan interval historis yang kosong tampil unavailable. Publikasi manual mengikuti handler CI3 dan berada di balik sakelar WO yang masih false. Penghapusan template tidak disediakan untuk menjaga record historis. Worker lulus fixture exact-minute, konkurensi dan rollback. Cron pengembangan belum aktif. |
 | Reports In dan Reports Out | Read-only working with limitation | Baris dan scope dari data aktual. Penanda subkategori tidak tersedia sama pada tabel, PDF, dan XLSX. Hasil ini tidak menetapkan paritas lengkap dengan Jasper. |
 | Edit gallery dan ordered list | Blocked by schema | Tabel relasi item CI3 tidak tersedia pada schema aktif. |
 | Edit metadata audio dan video | Not yet migrated | Source CI3 memiliki view. Jalur lokal memakai post_type yang seluruhnya post. Detail audio baru sebatas lampiran. |
 | Knowledge Center dan editor | MySQL active on development TCP 3310 | `kb_articles` terpisah. Parity awal 0 artikel, pembacaan MySQL terverifikasi di Apache pengembangan. Alur admin, draft, publikasi, relasi terurut, konflik revisi, visibilitas dan URL positif diuji pada fixture. |
 
-Operasi tulis di atas diuji pada MySQL terisolasi. Hanya sakelar Create aktif pada pengembangan `eworeb` TCP 3310.
+Operasi tulis di atas diuji pada MySQL terisolasi. Pengembangan `eworeb` TCP 3310 mengaktifkan sakelar Create biasa dan pembuatan Scheduled.
 
 ## Bukti dashboard tunggal dan alur WO sebelumnya, 19 November 2026 WIB
 

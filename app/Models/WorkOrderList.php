@@ -11,6 +11,7 @@ use DomainException;
 final class WorkOrderList
 {
     private const ACTIVE = ['p.visibility' => 1, 'p.status' => 1, 'p.is_scheduled' => 0];
+    private const SCHEDULED = ['p.status' => 1, 'p.is_scheduled' => 1];
     private const FILTERS = [
         'lang_id' => 'lang_id', 'post_type' => 'post_type', 'category' => 'category_id', 'user' => 'user_id',
     ];
@@ -27,7 +28,7 @@ final class WorkOrderList
 
         $query = $this->db->table('posts p');
         if ($direction === 'scheduled') {
-            $query->where(['p.status' => 1, 'p.is_scheduled' => 1]);
+            $query->where(self::SCHEDULED);
             $this->applyScheduleScope($query, $viewer);
         } else {
             if ($direction === 'drafts') {
@@ -64,6 +65,7 @@ final class WorkOrderList
         }
         if ($direction === 'scheduled') {
             $query->select('p.intervale, p.published_at');
+            $this->addScheduleLabels($query);
         } elseif ($direction !== 'drafts') {
             $query->orderBy('p.category_id', 'ASC');
         }
@@ -95,7 +97,7 @@ final class WorkOrderList
 
     public function detail(array $viewer, string $direction, int $id, int $page): ?array
     {
-        if (!in_array($direction, ['incoming', 'outgoing'], true)
+        if (!in_array($direction, ['incoming', 'outgoing', 'scheduled'], true)
             || !(new DashboardRepository($this->db))->supports($viewer)) {
             throw new DomainException('Work order scope is unavailable.');
         }
@@ -108,8 +110,12 @@ final class WorkOrderList
             ->join('locations location', 'location.id = p.location_id AND location.corp_id = p.corp_id', 'left')
             ->join('locations sublocation', 'sublocation.id = p.sublocation_id AND sublocation.corp_id = p.corp_id', 'left')
             ->join('departments department', 'department.id = p.dept_id AND department.corp_id = p.corp_id', 'left')
-            ->where(self::ACTIVE)->where('p.id', $id);
-        $this->applyDirectionalScope($query, $viewer, [], $direction === 'incoming');
+            ->where('p.id', $id);
+        $this->applyDetailScope($query, $viewer, $direction);
+        if ($direction === 'scheduled') {
+            $query->select('p.intervale, p.published_at');
+            $this->addScheduleLabels($query, true);
+        }
         $post = $query->get()->getRowArray();
         if ($post === null) {
             return null;
@@ -119,7 +125,7 @@ final class WorkOrderList
         $includesInitialEntry = (clone $history)->where(['log.assign_to' => null, 'log.edited_by' => null,
             'log.edited_at' => null])->countAllResults() > 0;
         $history->join('categories category', 'category.id = log.category_id')
-            ->join('users editor', 'editor.id = log.edited_by', $includesInitialEntry ? 'left' : 'inner')
+            ->join('users editor', 'editor.id = log.edited_by', $includesInitialEntry || $direction === 'scheduled' ? 'left' : 'inner')
             ->join('users assignee', 'assignee.id = log.assign_to AND assignee.corp_id = log.corp_id', 'left');
         $size = 25;
         $total = $history->countAllResults(false);
@@ -127,6 +133,10 @@ final class WorkOrderList
             ? 'editor.first_name AS editor_first, editor.last_name AS editor_last'
             : 'CASE WHEN editor.corp_id = log.corp_id THEN editor.first_name END AS editor_first,
                 CASE WHEN editor.corp_id = log.corp_id THEN editor.last_name END AS editor_last';
+        if ($direction === 'scheduled' && $this->db->fieldExists('intervale', 'posts_logs')
+            && $this->db->fieldExists('published_at', 'posts_logs')) {
+            $history->select('log.intervale, log.published_at');
+        }
         $rows = $history->select('log.id, log.summary, log.created_at, log.edited_at, category.name AS category,
 
             assignee.first_name AS assignee_first, assignee.last_name AS assignee_last')->select($editor, false)
@@ -139,14 +149,48 @@ final class WorkOrderList
 
     public function scopedActive(array $viewer, string $direction, int $id, bool $lock = false): ?array
     {
-        if (!in_array($direction, ['incoming', 'outgoing'], true) || !(new DashboardRepository($this->db))->supports($viewer)) {
+        if (!in_array($direction, ['incoming', 'outgoing', 'scheduled'], true) || !(new DashboardRepository($this->db))->supports($viewer)) {
             throw new DomainException('Work order scope is unavailable.', 403);
         }
-        $query = $this->db->table('posts p')->where(self::ACTIVE)->where('p.id', $id);
-        $this->applyDirectionalScope($query, $viewer, [], $direction === 'incoming');
+        $query = $this->db->table('posts p')->where('p.id', $id);
+        $this->applyDetailScope($query, $viewer, $direction);
         return $lock
             ? $this->db->query($query->getCompiledSelect() . ' FOR UPDATE')->getRowArray()
             : $query->get()->getRowArray();
+    }
+
+    public function publishScheduled(array $viewer, int $id): bool
+    {
+        if (!(new DashboardRepository($this->db))->supports($viewer)) {
+            throw new DomainException('Work order scope is unavailable.', 403);
+        }
+        $query = $this->db->table('posts p')->where(self::SCHEDULED)->where('p.id', $id)
+            ->where('p.published_at IS NOT NULL')->where('p.intervale >', 0);
+        $this->applyScheduleScope($query, $viewer);
+        return $query->update(['is_scheduled' => 0]) && $this->db->affectedRows() === 1;
+    }
+
+    private function applyDetailScope(BaseBuilder $query, array $viewer, string $direction): void
+    {
+        if ($direction === 'scheduled') {
+            $query->where(self::SCHEDULED);
+            $this->applyScheduleScope($query, $viewer);
+        } else {
+            $query->where(self::ACTIVE);
+            $this->applyDirectionalScope($query, $viewer, [], $direction === 'incoming');
+        }
+    }
+
+    private function addScheduleLabels(BaseBuilder $query, bool $detail = false): void
+    {
+        $query->select('schedule_corp.name AS corporation, schedule_role.role_name AS destination_role')
+            ->select('ABS(TIMESTAMPDIFF(DAY, CURRENT_DATE, p.published_at)) AS days_remaining', false)
+            ->join('corps schedule_corp', 'schedule_corp.id = p.corp_id', 'left')
+            ->join('roles_permissions schedule_role', 'schedule_role.id = p.role_id', 'left');
+        if (!$detail) {
+            $query->select('schedule_dept.name AS department')
+                ->join('departments schedule_dept', 'schedule_dept.id = p.dept_id AND schedule_dept.corp_id = p.corp_id', 'left');
+        }
     }
 
 

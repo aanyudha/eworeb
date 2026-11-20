@@ -10,7 +10,7 @@ Gunakan corpus sintetis dan instance MySQL terisolasi untuk setiap langkah tulis
 | `ewo.workOrderWrites` | Uji atas WO fixture yang ditetapkan. Verifikasi status awal, assignment, perubahan histori yang diizinkan, reopen, publish Draft existing, rollback, dan lampiran. |
 | `ewo.masterDataWrites` | Verifikasi satu kasus tiap editor pada data fixture, parent valid, penolakan lintas corporation, dan perlindungan kategori status WO. |
 | `ewo.accountWrites` | Gunakan pengguna fixture. Uji akun sendiri, administrator, role, kata sandi, settings, avatar, dan branding menurut batas yang telah tercatat. |
-| Scheduled | Fixture saja. Terima kebijakan atas jadwal historis kosong, menit terlewat, zona waktu dan cara pemanggilan cron terlebih dahulu. |
+| Scheduled WO | Verifikasi menu, form dan status dengan izin `add_post` dan `manage_all_posts`. Tulis data uji pada fixture. Aktivasi worker mengikuti checklist di bawah. |
 
 ## Siap untuk penerimaan pengguna
 
@@ -22,12 +22,15 @@ Gunakan corpus sintetis dan instance MySQL terisolasi untuk setiap langkah tulis
 
 ## Sakelar penulisan
 
-Hanya `ewo.workOrderCreateWrites` aktif pada `.env` lokal pengembangan TCP 3310. Prefix endpoint di tabel adalah `/api/v1`. Semua POST melewati CSRF global dan filter sesi. Endpoint yang menyimpan data memeriksa akun aktif dan meminta izin sesuai operasi.
+`ewo.workOrderCreateWrites` dan `ewo.scheduledWorkOrderCreates` aktif pada `.env` lokal pengembangan TCP 3310. `ewo.workOrderWrites`, `ewo.masterDataWrites`, `ewo.accountWrites` dan `ewo.scheduledWorkOrderWorker` efektif false. Prefix endpoint di tabel adalah `/api/v1`. Semua POST melewati CSRF global dan filter sesi. Endpoint yang menyimpan data memeriksa akun aktif dan meminta izin sesuai operasi.
 
 | Sakelar | POST yang dikendalikan | Cakupan, transaksi, histori dan kegagalan |
 | --- | --- | --- |
 | ewo.workOrderWrites | work-orders/incoming/{id}/reply, work-orders/incoming/{id}/attachments/{image atau audio}, work-orders/drafts/{id}/publish | add_post dan manage_all_posts untuk balasan dan lampiran. Scope Incoming, role tujuan dan corporation dilindungi. Balasan mengunci WO, memeriksa revisi dan memasukkan posts_logs dalam satu transaksi. Lampiran menulis metadata/referensi dan menyimpan file sebelum commit serta menangani rollback; arsip CI3 dipasang terpisah. Publikasi membutuhkan add_post dan memakai scope daftar Draft pada UPDATE atomik; mengikuti CI3 dengan menulis status saja. Fixture menolak lintas department dan corporation. |
 | ewo.workOrderCreateWrites | work-orders/create | Default false dan terpisah dari sakelar WO yang ada. Memerlukan MySQL dengan tabel InnoDB dan `published_at DATETIME NULL DEFAULT NULL` pada kedua tabel. Izin `admin_panel` dan `add_post`, CSRF, akun aktif, serta aturan verifikasi email dan scope berlaku. |
+| ewo.scheduledWorkOrderCreates | work-orders/create ketika Schedule Work Order dipilih | Memerlukan sakelar Create biasa, `manage_all_posts` dan kedua kolom `intervale` kompatibel. Tanggal mengikuti waktu lokal dan interval adalah jumlah hari positif. Template, histori awal dan relasi gambar ditulis dalam satu transaksi. |
+| ewo.workOrderWrites untuk publikasi manual Scheduled | work-orders/scheduled/{id}/publish | Memerlukan izin daftar dan jadwal valid. UPDATE atomik hanya mengubah `is_scheduled` menjadi 0, mengikuti aksi CI3. |
+| ewo.scheduledWorkOrderWorker | Perintah CLI `ewo:publish-scheduled` | Default false. Satu transaksi mengunci template, membuat occurrence beserta histori dan memajukan jadwal. Tanggal dan interval yang belum diketahui tetap di luar eksekusi. |
 | ewo.masterDataWrites | admin-directory/{categories,subcategories,locations,sublocations,departments,corporations}/new dan /{id}/edit | Izin menu yang sama dengan daftar. Corporation dan parent divalidasi, aksi corporations dibatasi administrator. Transaksi mencakup perubahan record, slug dan pewarisan warna bila berlaku. Kategori status inti dan relasi existing dilindungi. CI3 tidak menulis log WO untuk perubahan master. Fixture menguji keenam jalur, CSRF dan scope; gagalnya UPDATE turunan belum diuji dengan injeksi kegagalan. |
 | ewo.accountWrites | admin-directory/{users,administrators}/new dan /{id}/edit, admin-directory/roles/{id}/edit, account/password, account/profile/email, account/profile/avatar, settings/application, settings/visual/{logo atau favicon} | Mutasi akun dan role oleh administrator, password dan profil pada akun sesi sendiri, settings dengan izin settings. Akun tetap memakai hash bcrypt kompatibel, perubahan email meminta password saat ini dan memerlukan email verification legacy nonaktif. Settings menyimpan timezone dan field teks dalam transaksi; logo, favicon dan avatar mempunyai transaksi file/referensi. Tidak ada INSERT users_logs untuk mutasi profil/settings; users_logs mencatat aktivitas autentikasi seperti sebelumnya. Deaktivasi mengikuti CI3 untuk login baru; sesi lama tidak dicabut otomatis. |
 
@@ -37,7 +40,7 @@ Pembuktian mutasi memakai instance MySQL loopback sementara terpisah dengan defi
 
 ## Create WO dan keterbatasan kompatibilitas
 
-Kedua kolom publikasi tersedia pada TCP 3310. [Catatan eksekusi skema](LEGACY_DATABASE_ALIGNMENT.md#keputusan-pemilik-untuk-create-work-order-biasa) memuat bukti CI3, dua ALTER, hasil verifikasi 19.812 WO dan 43.609 histori, backup serta rollback. Definisi asli dan tanggal publikasi historis belum terbukti. Scheduled memerlukan kontrak `intervale`, validasi zona waktu dan pengujian cron tersendiri.
+Kedua kolom publikasi tersedia pada TCP 3310. Definisi asli dan tanggal publikasi historis belum terbukti. [Catatan eksekusi skema Create biasa](LEGACY_DATABASE_ALIGNMENT.md#keputusan-pemilik-untuk-create-work-order-biasa).
 
 Workspace menampilkan entri nonaktif dan pratinjau tanpa aksi simpan ketika gate tertutup. `GET api/v1/work-orders/create/preview` mengembalikan opsi yang scoped. `POST api/v1/work-orders/create` memvalidasi pilihan admin atau scope sesi non-admin, lokasi induk dan sublokasi, role tujuan `author`, `author1`, `author2`, dan status Draft atau Publish. Kategori New, WO biasa dan visibilitas berasal dari server. `posts`, satu `posts_logs` awal, serta relasi gambar yang berlaku ditulis atomik. API menerima referensi gambar katalog legacy. Opsi gambar milik pengguna lain memerlukan pengaturan file manager bersama serta corporation yang sama. Pemilih gambar pada form, upload baru dan pemberitahuan subscriber berada di luar aktivasi Create biasa. Work Order yang dipublikasikan dapat tampil di Outgoing sesuai filter role dan corporation/department yang sudah ada.
 
@@ -46,6 +49,13 @@ Suite `tests/integration/mysql-workspace.cjs <php.exe> <mysqld.exe> --wo-create`
 Regresi 20 November menguji Draft dengan Description kosong dan Publish melalui form React. PHP lint, PHPUnit 9 tes dan 35 assertion, TypeScript dan Vite lulus. Smoke CI4 terhadap TCP 3310 berjalan dalam transaksi baca-saja dengan sesi uji CLI in-memory. Akun aktif yang berizin mendapat preview dan Workspace dengan Create aktif. Guest ditolak. Penolakan akun tanpa `add_post` dan aksi simpan autentik diuji dengan sesi HTTP pada fixture.
 
 Edit umum audio/video belum terbukti setara. File_controller menyediakan upload, select, list, search dan delete untuk katalog audio/video, sementara jalur penyuntingan metadata in-place tidak ditemukan. Field video_embed_code dan video_path pada set_data CI3 dikomentari. Audio pada WO masih didukung melalui unggah dan relasi yang sudah diuji. Gallery dan ordered list tetap diblokir oleh skema tabel relasi yang hilang. Visual Settings aktif hanya logo dan favicon. Upaya mengedit warna/format lama tidak ditambahkan; field branding mentah SVG ditahan dan favicon baru dibatasi PNG sesuai input form legacy. Email Settings, kontak rich HTML, dan pengiriman email aktivasi masih memerlukan alur aman yang diverifikasi.
+
+## Scheduled WO dan aktivasi worker
+
+- Sidebar, daftar/detail dan kontrol jadwal pada form Create aktif di pengembangan. Daftar Published menampilkan empat template historis kepada administrator pada smoke baca-saja. Secara keseluruhan terdapat lima template dan 43 histori historis yang masih memiliki tanggal dan interval NULL. [Bukti backup, restore dan DDL](LEGACY_DATABASE_ALIGNMENT.md#kompatibilitas-scheduled-wo-pada-pengembangan).
+- Suite MySQL terisolasi Create, Reply dan standar lulus. Chrome mencakup Scheduled, desktop dan mobile, dashboard, Knowledge Center, serta Reports PDF A3 dan XLSX pada skema aktual dan fixture dengan subkategori. Mode standar lulus setelah akses startup DevTools tersedia pada percobaan ulang.
+- Sebelum aktivasi worker, konfirmasi persetujuan operasional, inventaris template aktif, backup database dan media, timezone pada pengaturan CI3, `@@session.time_zone` serta waktu server. Pada pengembangan, `SYSTEM` cocok dengan wall clock `Asia/Jakarta` saat diperiksa. CLI menghentikan eksekusi jika waktunya berbeda. Tentukan pemantauan kegagalan dan jadwal yang terlewat. Semantik CI3 hanya menjalankan menit yang cocok dan mempertahankan Draft maupun Published serta assignment.
+- Setelah persetujuan terpisah, jadwalkan `php spark ewo:publish-scheduled` tiap menit pada runtime yang disetujui dengan `ewo.scheduledWorkOrderWorker=true`. Periksa satu occurrence, histori dan jadwal berikutnya pada awal operasi. Hentikan penjadwal dan matikan sakelar worker jika hasil tidak cocok. Jadwal historis hanya boleh diaktifkan dari nilai yang dapat diverifikasi.
 
 ## Bukti regresi
 

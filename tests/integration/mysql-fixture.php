@@ -31,6 +31,10 @@ function buildLegacyFixture(mysqli $fixture, bool $create): void
                 $ddl = preg_replace('/^  `published_at` datetime DEFAULT NULL,\r?\n/m', '', $ddl, 1, $removed);
                 if ($removed !== 1) throw new RuntimeException('Unexpected publication column in the schema source.');
             }
+            if ($create && in_array($table, ['posts', 'posts_logs'], true) && str_contains($ddl, '`intervale`')) {
+                $ddl = preg_replace('/^  `intervale` int unsigned DEFAULT NULL,\r?\n/m', '', $ddl, 1, $removed);
+                if ($removed !== 1) throw new RuntimeException('Unexpected interval column in the schema source.');
+            }
             $fixture->query(preg_replace('/ AUTO_INCREMENT=\d+/', '', $ddl));
         }
     } finally {
@@ -118,10 +122,11 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
             foreach (['posts', 'posts_logs'] as $table) {
                 $original = $db->query("SELECT * FROM $table ORDER BY id")->fetch_all(MYSQLI_ASSOC);
                 $db->query("ALTER TABLE $table ADD COLUMN published_at DATETIME NULL DEFAULT NULL");
+                $db->query("ALTER TABLE $table ADD COLUMN intervale INT UNSIGNED NULL DEFAULT NULL");
                 $rows = $db->query("SELECT * FROM $table ORDER BY id")->fetch_all(MYSQLI_ASSOC);
                 foreach ($rows as &$row) {
-                    if ($row['published_at'] !== null) throw new RuntimeException('Proposed DDL assigned a historical publication date.');
-                    unset($row['published_at']);
+                    if ($row['published_at'] !== null || $row['intervale'] !== null) throw new RuntimeException('Proposed DDL assigned historical schedule data.');
+                    unset($row['published_at'], $row['intervale']);
                 }
                 unset($row);
                 if ($original !== $rows) throw new RuntimeException('Proposed DDL changed historical fields.');
@@ -174,6 +179,7 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
                 $db->query("GRANT INSERT ON ewo_fixture.$table TO 'ewo_fixture'@'localhost'");
             }
             $db->query("GRANT UPDATE ON ewo_fixture.kb_articles TO 'ewo_fixture'@'localhost'");
+            $db->query("GRANT UPDATE (is_scheduled) ON ewo_fixture.posts TO 'ewo_fixture'@'localhost'");
             $db->query("GRANT CREATE TEMPORARY TABLES ON ewo_fixture.* TO 'ewo_fixture'@'localhost'");
         }
         if ($replies) {
@@ -200,9 +206,6 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
     $db->select_db('ewo_fixture');
     if ($create && $action === 'scheduled-prepare') {
         $db->query('ALTER TABLE posts_logs MODIFY published_at DATETIME NULL DEFAULT NULL');
-        foreach (['posts', 'posts_logs'] as $table) {
-            $db->query("ALTER TABLE $table ADD COLUMN intervale INT UNSIGNED NULL DEFAULT NULL");
-        }
         $db->query("GRANT UPDATE (published_at) ON ewo_fixture.posts TO 'ewo_fixture'@'localhost'");
         $db->query("CREATE TRIGGER fixture_refuse_occurrence BEFORE INSERT ON posts_logs FOR EACH ROW BEGIN
             IF NEW.title='Rollback schedule' AND NEW.is_scheduled=0 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Fixture rejection'; END IF;

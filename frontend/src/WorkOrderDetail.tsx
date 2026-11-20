@@ -16,6 +16,13 @@ type Detail = {
     assign_to: string | number | null
     created_at: string | null
     edited_at: string | null
+    corporation?: string | null
+    corp_id?: string | number | null
+    dept_id?: string | number | null
+    destination_role?: string | null
+    role_id?: string | number | null
+    published_at?: string | null
+    intervale?: string | number | null
   }
   history: {
     items: {
@@ -28,6 +35,8 @@ type Detail = {
       editor_last: string | null
       assignee_first: string | null
       assignee_last: string | null
+      published_at?: string | null
+      intervale?: string | number | null
     }[]
     total: number
     page: number
@@ -35,7 +44,7 @@ type Detail = {
   }
 }
 
-export default function WorkOrderDetail({ endpoint, direction, replyEnabled = false }: { endpoint: string; direction: 'incoming' | 'outgoing'; replyEnabled?: boolean }) {
+export default function WorkOrderDetail({ endpoint, direction, replyEnabled = false }: { endpoint: string; direction: 'incoming' | 'outgoing' | 'scheduled'; replyEnabled?: boolean }) {
   const { id } = useParams()
   const location = useLocation()
   const [params, setParams] = useSearchParams()
@@ -117,7 +126,13 @@ export default function WorkOrderDetail({ endpoint, direction, replyEnabled = fa
           <dl>
             <dt>Status</dt><dd>{item.category || '—'}</dd>
             <dt>Location</dt><dd>{[item.location, item.sublocation].filter(Boolean).join(' / ') || '—'}</dd>
-            <dt>Department</dt><dd>{item.department || '—'}</dd>
+            <dt>Department</dt><dd>{item.department || (direction === 'scheduled' ? item.dept_id ?? '—' : '—')}</dd>
+            {direction === 'scheduled' && <>
+              <dt>Corporation</dt><dd>{item.corporation ?? item.corp_id ?? '—'}</dd>
+              <dt>Destination role</dt><dd>{item.destination_role ?? item.role_id ?? '—'}</dd>
+              <dt>Next publication</dt><dd>{item.published_at && Number(item.intervale) > 0 ? item.published_at : 'Schedule unavailable'}</dd>
+              <dt>Interval (days)</dt><dd>{Number(item.intervale) > 0 ? item.intervale : 'Unavailable'}</dd>
+            </>}
             <dt>Assignee ID</dt><dd>{item.assign_to ?? '—'}</dd>
             <dt>Created</dt><dd>{item.created_at || '—'}</dd>
             <dt>Replied</dt><dd>{item.edited_at || '—'}</dd>
@@ -153,11 +168,13 @@ export default function WorkOrderDetail({ endpoint, direction, replyEnabled = fa
           <thead><tr>
             <th scope="col">Date</th><th scope="col">Status</th><th scope="col">Note</th>
             <th scope="col">Replied by</th><th scope="col">Assigned to</th>
+            {direction === 'scheduled' && <><th scope="col">Publication date</th><th scope="col">Interval (days)</th></>}
           </tr></thead>
           <tbody>{history.items.map(row => <tr key={row.id}>
             <td>{row.edited_at ?? row.created_at}</td><td>{row.category}</td><td>{row.summary}</td>
             <td>{[row.editor_first, row.editor_last].filter(Boolean).join(' ')}</td>
             <td>{[row.assignee_first, row.assignee_last].filter(Boolean).join(' ')}</td>
+            {direction === 'scheduled' && <><td>{row.published_at ?? 'Unavailable'}</td><td>{row.intervale ?? 'Unavailable'}</td></>}
           </tr>)}</tbody>
         </table></div> : <p className="empty">No history entries.</p>}
         <nav className="panel-head" aria-label="History pages">

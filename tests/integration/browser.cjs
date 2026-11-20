@@ -70,14 +70,18 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
         assert.equal(await evaluate("[...document.querySelectorAll('a')].some(a=>a.textContent==='Classic dashboard')"),false);
         const group = name => `document.querySelector('button.nav-group-toggle[aria-label="${name}"]')`;
         if (mysql?.create) {
-            async function createInBrowser(status, title, summary) {
+            async function createInBrowser(status, title, summary, scheduled = false) {
                 await evaluate("document.querySelector('nav a[href$=\"/work-orders/create\"]').click()");
                 await until(()=>evaluate("Boolean(document.querySelector('.create-wo-form button[type=submit]:not(:disabled)'))"));
                 for (const [name, value] of [['corp_id','1'],['dept_id','10'],['location_id','1'],['sublocation_id','3']]) {
                     await until(()=>evaluate(`Boolean(document.querySelector('[name=${name}] option[value="${value}"]'))`));
                     await evaluate(`{const field = document.querySelector('[name=${name}]'); field.value = '${value}'; field.dispatchEvent(new Event('change', {bubbles:true}));}`);
                 }
-                if (status === 1) {
+                if (scheduled) {
+                    await evaluate("document.querySelector('[name=scheduled_post]').click()");
+                    await until(()=>evaluate("Boolean(document.querySelector('[name=date_published]')?.required)"));
+                    await evaluate("document.querySelector('[name=date_published]').value='2030-11-20T13:21'; document.querySelector('[name=intervale]').value='3'");
+                } else if (status === 1) {
                     await until(()=>evaluate("Boolean(document.querySelector('.create-wo-form input[type=file]'))"));
                     const {root} = await send('DOM.getDocument');
                     const {nodeId} = await send('DOM.querySelector',{nodeId:root.nodeId,selector:'.create-wo-form input[type=file]'});
@@ -97,6 +101,25 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
             await evaluate(`document.querySelector('tbody a[href$="/outgoing/${confirmation}"]').click()`);
             await until(()=>evaluate(`document.querySelector('h1')?.innerText==='Work Order #${confirmation}' && document.querySelector('tbody')?.innerText.includes('Browser initial history') && document.body.innerText.includes('Primary image') && document.body.innerText.includes('Additional image')`));
             console.log('Chrome: Create Draft with blank description, Publish, Outgoing and initial history PASS');
+
+            assert.ok(await createInBrowser(0, 'Browser schedule draft', 'Draft schedule', true));
+            await send('Page.navigate',{url:origin+'/workspace/work-orders/drafts?q=Browser+schedule+draft'});
+            await until(()=>evaluate("document.querySelector('tbody')?.innerText.includes('Browser schedule draft')"));
+            const scheduled = await createInBrowser(1, 'Browser published schedule', 'Scheduled initial history', true);
+            await evaluate("document.querySelector('nav a[aria-label=\"Scheduled WO\"]').click()");
+            await until(()=>evaluate("document.querySelector('h1')?.innerText==='Scheduled Work Orders' && document.querySelector('tbody')?.innerText.includes('Browser published schedule') && document.querySelector('tbody')?.innerText.includes('Schedule unavailable') && !document.querySelector('tbody')?.innerText.includes('Browser schedule draft')"));
+            await evaluate(`document.querySelector('tbody a[href$="/scheduled/${scheduled}"]').click()`);
+            await until(()=>evaluate(`document.querySelector('h1')?.innerText==='Work Order #${scheduled}' && document.querySelector('tbody')?.innerText.includes('Scheduled initial history') && document.querySelector('tbody')?.innerText.includes('2030-11-20 13:21:00')`));
+            await send('Page.reload');
+            await until(()=>evaluate("document.querySelector('tbody')?.innerText.includes('Scheduled initial history')"));
+            await send('Emulation.setDeviceMetricsOverride',{width:390,height:900,deviceScaleFactor:1,mobile:true});
+            await until(()=>evaluate("document.documentElement.clientWidth===390 && document.documentElement.scrollWidth<=390"));
+            await send('Page.navigate',{url:origin+'/workspace/work-orders/create'});
+            await until(()=>evaluate("Boolean(document.querySelector('[name=scheduled_post]'))"));
+            await evaluate("document.querySelector('[name=scheduled_post]').click()");
+            await until(()=>evaluate("document.querySelector('[name=date_published]')?.required && document.documentElement.scrollWidth<=390"));
+            await send('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});
+            console.log('Chrome: Scheduled WO sidebar, same-form Draft/Publish, historic placeholder, detail/history, deep link and mobile PASS');
         } else {
             assert.ok(await evaluate("document.querySelector('[aria-disabled=true][role=link][aria-label^=Create]')?.textContent.includes('publication date')"));
         }

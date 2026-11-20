@@ -27,7 +27,7 @@ final class WorkOrderCreateController extends BaseController
             if (($reason = $create->writeBlocker()) !== null) {
                 throw new DomainException($reason, 503);
             }
-            $id = $create->create($viewer, $settings, $this->request->getPost());
+            $id = $create->create($viewer, $settings, $this->request->getPost(), $this->maySchedule($viewer));
             return ['id' => $id, 'csrf' => $this->csrf()];
         }, 201);
     }
@@ -138,14 +138,15 @@ final class WorkOrderCreateController extends BaseController
             }
         }
 
-        $reason = $missing === [] ? (new WorkOrderCreate($db))->writeBlocker()
+        $create = new WorkOrderCreate($db);
+        $reason = $missing === [] ? $create->writeBlocker()
             : 'Saving is blocked by missing legacy columns (' . implode(', ', $missing) . ').';
         return [
             'reason' => $reason,
             'submission' => $reason === null ? ['endpoint' => site_url('api/v1/work-orders/create'), 'csrf' => $this->csrf()] : null,
             'imagesEndpoint' => $reason === null ? site_url('api/v1/work-orders/create/images') : null,
             'canChooseScope' => $admin,
-            'canSchedule' => service('ewoIdentity')->allows($viewer, 'manage_all_posts'),
+            'canSchedule' => $reason === null && $this->maySchedule($viewer) && $create->scheduledBlocker() === null,
             'corporations' => $corporationOptions,
             'departments' => $departmentOptions,
             'locations' => $locations->get()->getResultArray(),
@@ -154,6 +155,11 @@ final class WorkOrderCreateController extends BaseController
             'category' => $db->table('categories')->select('id, name')->where(['id' => 1, 'parent_id' => 0])
                 ->get()->getRowArray(),
         ];
+    }
+
+    private function maySchedule(array $viewer): bool
+    {
+        return service('ewoIdentity')->allows($viewer, 'manage_all_posts');
     }
 
     private function csrf(): array

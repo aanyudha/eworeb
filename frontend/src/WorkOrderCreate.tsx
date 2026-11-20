@@ -113,6 +113,7 @@ function CreateWorkOrderForm({ data }: { data: Preview }) {
   const pending = useRef(false)
   const csrf = useRef<Csrf | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [scheduled, setScheduled] = useState(false)
 
   async function uploadImage(file: File): Promise<number> {
     if (!data.submission || !data.imagesEndpoint || pending.current) throw new Error('Image upload is unavailable.')
@@ -196,11 +197,14 @@ function CreateWorkOrderForm({ data }: { data: Preview }) {
     <label className="create-wo-wide">Image description<input name="image_description" maxLength={500} /></label>
     {data.imagesEndpoint && corporation && <ImageSelection key={corporation} endpoint={data.imagesEndpoint} corporation={corporation}
       disabled={mutation.isPending || mutation.isSuccess} upload={uploadImage} />}
-    {data.canSchedule && <fieldset className="create-wo-wide" disabled>
-      <legend>Scheduled creation unavailable</legend>
-      <label><span><input type="checkbox" name="scheduled_post" value="1" /> Schedule work order</span></label>
-      <label>Publication date<input type="datetime-local" name="date_published" /></label>
-      <label>Interval in days<input name="intervale" /></label>
+    {data.canSchedule && <fieldset className="create-wo-wide" disabled={mutation.isPending || mutation.isSuccess}>
+      <legend>Scheduling</legend>
+      <label><span><input type="checkbox" name="scheduled_post" value="1" checked={scheduled}
+        onChange={event => setScheduled(event.target.checked)} /> Schedule Work Order</span></label>
+      {scheduled && <>
+        <label>Publication date (server time)<input type="datetime-local" name="date_published" required /></label>
+        <label>Recurrence interval in days<input type="number" name="intervale" min={1} max={2147483647} step={1} required /></label>
+      </>}
     </fieldset>}
     {data.submission && <div className="create-wo-wide">
       <button className="secondary" type="submit" name="status" value="0" disabled={uploading || mutation.isPending || mutation.isSuccess || data.category === null}>Save Draft</button>{' '}

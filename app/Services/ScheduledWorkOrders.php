@@ -22,7 +22,20 @@ final class ScheduledWorkOrders
     {
     }
 
-    // No runtime entry point until the historical-record and cron policies are accepted.
+    public function schemaReady(): bool
+    {
+        if ($this->db->DBDriver !== 'MySQLi') {
+            return false;
+        }
+        $row = $this->db->query("SELECT COUNT(*) AS matched FROM information_schema.COLUMNS c
+            JOIN information_schema.TABLES t ON t.TABLE_SCHEMA=c.TABLE_SCHEMA AND t.TABLE_NAME=c.TABLE_NAME
+            WHERE c.TABLE_SCHEMA=DATABASE() AND c.TABLE_NAME IN ('posts','posts_logs') AND t.ENGINE='InnoDB'
+            AND c.IS_NULLABLE='YES' AND c.COLUMN_DEFAULT IS NULL AND c.EXTRA=''
+            AND ((c.COLUMN_NAME='published_at' AND c.COLUMN_TYPE='datetime')
+              OR (c.COLUMN_NAME='intervale' AND c.COLUMN_TYPE='int unsigned'))")->getRowArray();
+        return (int) $row['matched'] === 4;
+    }
+
     public function publishMinute(DateTimeImmutable $now): array
     {
         $floor = $now->setTime((int)$now->format('H'), (int)$now->format('i'));

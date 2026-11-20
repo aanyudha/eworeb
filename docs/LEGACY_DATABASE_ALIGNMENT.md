@@ -1,11 +1,26 @@
 # Audit dan penyelarasan database EWO legacy
 
+## Kompatibilitas Scheduled WO pada pengembangan
+
+Pada 20 November 2026 WIB, hanya dua kolom berikut ditambahkan ke `eworeb` TCP 3310 atas persetujuan pemilik.
+
+```sql
+ALTER TABLE posts ADD COLUMN intervale INT UNSIGNED NULL DEFAULT NULL;
+ALTER TABLE posts_logs ADD COLUMN intervale INT UNSIGNED NULL DEFAULT NULL;
+```
+
+CI3 menulis interval pada template dan histori serta menghitung pengulangan dalam hari lewat `DATE_ADD`. CI3 memakai nol pada occurrence. Definisi MySQL asli dan nilai jadwal historis belum ditemukan pada tiga dump atau riwayat Git yang tersedia. Kolom kompatibilitas dapat menyimpan interval hari positif, nol untuk occurrence, dan NULL untuk nilai yang tidak diketahui.
+
+- Backup privat `eworeb-3310-scheduled-20261120-141159/eworeb.sql` berukuran 45.434.484 byte, SHA-256 `490669c998289e852458bbdae29b287aa603457bb106fabaed5b1b20cc7e7ee7`. Restore pada MySQL loopback TCP 53521 cocok pada 19 tabel, seluruh jumlah dan fingerprint. MySQL menuliskan charset bawaan secara eksplisit pada dua ENUM KB setelah restore. Pemeriksaan restore menyetarakan hanya representasi tersebut setelah memastikan collations sama. Dua ALTER dan fingerprint sesudah perubahan kemudian lulus pada restore yang sama.
+- Sesi DDL memeriksa tujuan loopback, transaksi aktif dan metadata lock, memakai timeout lima detik, serta memegang lock penghalang tulis pada 19 tabel sepanjang verifikasi dan kedua ALTER. Binlogging dinonaktifkan pada sesi DDL. Semua definisi lama, jumlah dan SHA-256 isi kolom lama identik sebelum dan sesudah. Totalnya **444.040 record**, termasuk **19.813 WO** dan **43.610 histori**. Kedua kolom baru berisi NULL pada seluruh record sebelumnya. Lima template dan 43 histori Scheduled tetap memiliki tanggal publikasi dan interval NULL.
+- Jika perlu pemulihan, hentikan authoring dan worker terlebih dahulu. MySQL melakukan commit DDL per ALTER. Tinjau definisi kedua tabel, arsipkan setiap jadwal baru dan cocokkan WO serta histori yang tersimpan sejak backup sebelum menyetujui tindakan pemulihan. Gunakan cadangan dan rehearsal di instance terpisah untuk menyiapkan pemulihan yang mempertahankan transaksi tersebut.
+
 ## Scheduled, media Create, dan subkategori
 
 Pada audit sebelum cutover KB, MySQL pengembangan TCP 3310 memiliki 18 tabel legacy dengan 444.039 record. SHA-256 dan definisi setiap tabel cocok dengan backup yang dipulihkan: 19.813 `posts` dan 43.610 `posts_logs`. Lima template dan 43 baris histori terjadwal masih memiliki `published_at` NULL. `intervale` masih tertahan, sedangkan tabel terpisah `kb_articles` ditambahkan pada [cutover KB berikutnya](KNOWLEDGE_BASE_MYSQL.md#cutover-pengembangan-20-november-2026-wib).
 
 - CI3 `Cron_controller::check_scheduled_posts` memproses template dengan `is_scheduled=1` pada menit yang sama. `Post_admin_model::input_values2` membawa status, assignment, referensi gambar utama, dan `created_at` dari template. Baris hasil akan memiliki `is_scheduled=0`, `intervale=0`, dan `published_at` dari waktu eksekusi. History memakai `published_at` template dan `post_id` hasil. Template maju dengan `DATE_ADD(..., INTERVAL intervale DAY)`. CI3 tidak menyalin `post_images` dan tidak memanggil notifikasi di cron. Menit yang terlewat, status Draft, dan nilai jadwal kosong mengikuti perilaku ini.
-- Usulan yang diuji hanya pada fixture adalah `ALTER TABLE posts ADD COLUMN intervale INT UNSIGNED NULL DEFAULT NULL;` dan `ALTER TABLE posts_logs ADD COLUMN intervale INT UNSIGNED NULL DEFAULT NULL;`. Angka adalah interval hari positif untuk template yang memenuhi syarat dan nol pada hasil. NULL menyimpan ketidakpastian data historis. Tipe DDL CI3 asli tidak diketahui. Worker CI4 memakai row lock dan satu transaksi untuk hasil, histori, dan kemajuan jadwal. Runner runtime, deployment cron, dan DDL Scheduled pada pengembangan menunggu penerimaan kebijakan historis, zona waktu, dan eksekusi cron.
+- Pada tahap sebelum cutover Scheduled, kedua ALTER `intervale` diuji pada fixture. Worker CI4 memakai row lock dan satu transaksi untuk hasil, histori, dan kemajuan jadwal.
 - `File_model` menyimpan lima rendition JPEG dan GIF tunggal pada katalog `images`. Create menyalin referensi utama ke `posts` dan `posts_logs`, serta gambar tambahan ke `post_images`. CI4 menggunakan file privat, validasi format aktual, izin katalog, batas corporation, dan rollback metadata/file. Upload katalog merupakan aksi tersendiri sebelum Draft/Publish, seperti file manager CI3.
 - `final_db_deploy.sql` punya definisi `subcategory_id` pada `posts` dan `posts_logs`, tanpa `INSERT` untuk kedua tabel itu. Dump `ewohotel_tntrm.sql` mempunyai record tanpa kolom tersebut. `user.sql` hanya memuat akun. Git tidak menyediakan versi data lain. Belum ada sumber pasangan nilai subkategori per WO yang dapat dicocokkan. Reports tetap menggunakan `Subcategory unavailable`, filter dan total existing serta PDF/XLSX.
 

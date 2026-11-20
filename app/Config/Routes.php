@@ -78,6 +78,14 @@ $routes->post('api/v1/work-orders/drafts/(:num)/publish', 'WorkOrderController::
     ['filter' => 'ewo-admin:admin_panel,add_post,json']);
 $routes->get('api/v1/work-orders/scheduled', 'WorkOrderController::index/scheduled',
     ['filter' => 'ewo-admin:admin_panel,add_post,manage_all_posts,json']);
+$routes->get('api/v1/work-orders/scheduled/(:num)', 'WorkOrderController::detail/scheduled/$1',
+    ['filter' => 'ewo-admin:admin_panel,add_post,manage_all_posts,json']);
+$routes->post('api/v1/work-orders/scheduled/(:num)/publish', 'WorkOrderController::publishScheduled/$1',
+    ['filter' => 'ewo-admin:admin_panel,add_post,manage_all_posts,json']);
+$routes->get('api/v1/work-orders/scheduled/(:num)/attachments', 'WorkOrderAttachmentController::index/scheduled/$1',
+    ['filter' => 'ewo-admin:admin_panel,add_post,manage_all_posts,json']);
+$routes->get('api/v1/work-orders/scheduled/(:num)/attachments/(main|image|audio)/(:num)', 'WorkOrderAttachmentController::download/scheduled/$1/$2/$3',
+    ['filter' => 'ewo-admin:admin_panel,add_post,manage_all_posts,json']);
 $routes->get('api/v1/work-orders/(incoming|outgoing)/(:num)', 'WorkOrderController::detail/$1/$2',
     ['filter' => 'ewo-admin:admin_panel,add_post,json']);
 $routes->get('api/v1/work-orders/incoming/(:num)/reply', 'WorkOrderReplyController::options/$1',

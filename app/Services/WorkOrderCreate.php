@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 use CodeIgniter\Database\BaseConnection;
+use DateTimeImmutable;
+use DateTimeZone;
 use DomainException;
 use RuntimeException;
 use Throwable;
@@ -46,8 +48,16 @@ final class WorkOrderCreate
         return null;
     }
 
-    public function create(array $viewer, array $settings, array $input): int
+    public function scheduledBlocker(): ?string
     {
+        return env('ewo.scheduledWorkOrderCreates', false) === true
+            && (new ScheduledWorkOrders($this->db))->schemaReady()
+            ? null : 'Scheduled creation is unavailable in this environment.';
+    }
+
+    public function create(array $viewer, array $settings, array $input, bool $canSchedule = false): int
+    {
+        $schedule = $this->scheduleFields($input, $canSchedule);
         $admin = $viewer['role'] === 'admin';
         $corp = $this->id($admin ? ($input['corp_id'] ?? null) : $viewer['corp_id'], 'corporation');
         $dept = $this->id($admin ? ($input['dept_id'] ?? null) : $viewer['dept_id'], 'department');
@@ -58,23 +68,17 @@ final class WorkOrderCreate
         if (!in_array($status, ['0', '1'], true)) {
             throw new DomainException('Choose Draft or Publish.', 422);
         }
-        foreach (['scheduled_post','date_published','intervale','published_at','send_post_to_subscribes'] as $unsupported) {
-            if (array_key_exists($unsupported, $input)) {
-                throw new DomainException('Scheduled creation and subscriber notifications are unavailable.', 422);
-            }
-        }
-
         $entry = [
             'lang_id' => 1, 'visibility' => 1, 'post_type' => 'post', 'category_id' => 1,
             'title' => $this->text($input['title'] ?? null, 'title', 500, true),
             'summary' => array_key_exists('summary', $input) ? $this->text($input['summary'], 'description', 5000) : null,
             'image_description' => $this->text($input['image_description'] ?? '', 'image description', 500),
-            'corp_id' => $corp, 'dept_id' => $dept, 'user_id' => (int) $viewer['id'], 'role_id' => $role,
+            'corp_id' => $corp, 'dept_id' => !$admin && $schedule !== [] ? 0 : $dept,
+            'user_id' => (int) $viewer['id'], 'role_id' => $role,
             'location_id' => $location, 'sublocation_id' => $sublocation, 'status' => (int) $status,
-            'is_scheduled' => 0, 'published_at' => null,
             'image_big' => '', 'image_default' => '', 'image_slider' => '', 'image_mid' => '',
             'image_small' => '', 'image_mime' => 'jpg', 'image_url' => '',
-        ];
+        ] + ($schedule ?: ['is_scheduled' => 0, 'published_at' => null]);
         $main = $input['post_image_id'] ?? '';
         $main = $main === '' ? null : $this->id($main, 'main image');
         $additional = $input['additional_post_image_id'] ?? [];
@@ -134,6 +138,44 @@ final class WorkOrderCreate
             $this->db->transRollback();
             throw $error;
         }
+    }
+
+    private function scheduleFields(array $input, bool $allowed): array
+    {
+        if (array_key_exists('published_at', $input) || array_key_exists('send_post_to_subscribes', $input)) {
+            throw new DomainException('Use supported Work Order publication fields.', 422);
+        }
+        if (!array_key_exists('scheduled_post', $input)) {
+            if (array_key_exists('date_published', $input) || array_key_exists('intervale', $input)) {
+                throw new DomainException('Select Schedule Work Order before entering recurrence fields.', 422);
+            }
+            return [];
+        }
+        if ($input['scheduled_post'] !== '1') {
+            throw new DomainException('Select a valid scheduling option.', 422);
+        }
+        if (!$allowed) {
+            throw new DomainException('Scheduled creation requires manage_all_posts.', 403);
+        }
+        if (($reason = $this->scheduledBlocker()) !== null) {
+            throw new DomainException($reason, 503);
+        }
+        $inputDate = $input['date_published'] ?? null;
+        if (!is_string($inputDate) || preg_match('/^[1-9]\d{3}-\d{2}-\d{2}[T ]\d{2}:\d{2}$/D', $inputDate) !== 1) {
+            throw new DomainException('Enter a valid publication date and time.', 422);
+        }
+        $inputDate = str_replace('T', ' ', $inputDate);
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d H:i', $inputDate, new DateTimeZone('UTC'));
+        if ($date === false || $date->format('Y-m-d H:i') !== $inputDate) {
+            throw new DomainException('Enter a valid publication date and time.', 422);
+        }
+        $interval = $this->id($input['intervale'] ?? null, 'recurrence interval in days');
+        $next = $this->db->query('SELECT DATE_ADD(CAST(? AS DATETIME), INTERVAL ? DAY) AS next_at',
+            [$date->format('Y-m-d H:i:s'), $interval])->getRowArray()['next_at'];
+        if ($next === null) {
+            throw new DomainException('Recurrence exceeds the valid publication date range.', 422);
+        }
+        return ['is_scheduled' => 1, 'published_at' => $date->format('Y-m-d H:i:s'), 'intervale' => $interval];
     }
 
     private function id(mixed $value, string $field, int $minimum = 1): int

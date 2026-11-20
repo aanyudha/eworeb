@@ -133,7 +133,7 @@ function Workspace() {
     { path: '/work-orders/outgoing', label: 'Outgoing WO' },
     { path: '/work-orders/drafts', label: 'Drafts' },
   )
-  if (scheduleAccess === 'enabled') links.push({ path: '/work-orders/scheduled', label: 'Scheduled' })
+  if (scheduleAccess === 'enabled') links.push({ path: '/work-orders/scheduled', label: 'Scheduled WO' })
   if (reportsApi) links.push(
     { path: '/reports/incoming', label: 'Reports In' },
     { path: '/reports/outgoing', label: 'Reports Out' },
@@ -160,6 +160,7 @@ function Workspace() {
       {workOrdersApi && <Route path="/work-orders/outgoing/:id" element={<WorkOrderDetail endpoint={workOrdersApi} direction="outgoing" />} />}
       {workOrdersApi && <Route path="/work-orders/drafts" element={<WorkOrders endpoint={workOrdersApi} direction="drafts" role={Number(workOrderRole)} />} />}
       {workOrdersApi && scheduleAccess === 'enabled' && <Route path="/work-orders/scheduled" element={<WorkOrders endpoint={workOrdersApi} direction="scheduled" role={Number(workOrderRole)} />} />}
+      {workOrdersApi && scheduleAccess === 'enabled' && <Route path="/work-orders/scheduled/:id" element={<WorkOrderDetail endpoint={workOrdersApi} direction="scheduled" />} />}
       {reportsApi && <Route path="/reports/incoming" element={<WorkOrders key="reports-in" endpoint={reportsApi} direction="incoming" role={Number(workOrderRole)} report />} />}
       {reportsApi && <Route path="/reports/outgoing" element={<WorkOrders key="reports-out" endpoint={reportsApi} direction="outgoing" role={Number(workOrderRole)} report />} />}
       {directoryViews.map(({ path, label, endpoint }) =>

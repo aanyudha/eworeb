@@ -21,9 +21,19 @@ final class WorkOrderController extends BaseController
 
     public function publishDraft(string $order): ResponseInterface
     {
+        return $this->publish($order, false);
+    }
+
+    public function publishScheduled(string $order): ResponseInterface
+    {
+        return $this->publish($order, true);
+    }
+
+    private function publish(string $order, bool $scheduled): ResponseInterface
+    {
         $response = $this->response->setHeader('Cache-Control', 'private, no-store');
         if (env('ewo.workOrderWrites', false) !== true) {
-            return $response->setStatusCode(503)->setJSON(['error' => 'Draft publication is disabled in this environment.']);
+            return $response->setStatusCode(503)->setJSON(['error' => 'Work Order publication is disabled in this environment.']);
         }
         $viewer = service('ewoIdentity')?->currentUser();
         if ($viewer === null || (int)$viewer['status'] !== 1) {
@@ -34,14 +44,18 @@ final class WorkOrderController extends BaseController
             return $response->setStatusCode(422)->setJSON(['error' => 'Check the Work Order ID.']);
         }
         try {
-            if (!(new WorkOrderList(Database::connect('ewo')))->publishDraft($viewer, $id)) {
-                return $response->setStatusCode(404)->setJSON(['error' => 'Publishable draft not found.']);
+            $list = new WorkOrderList(Database::connect('ewo'));
+            if ($scheduled && $list->missingColumns('scheduled') !== []) {
+                return $response->setStatusCode(503)->setJSON(['error' => 'Scheduled Work Order schema is unavailable.']);
+            }
+            if (!($scheduled ? $list->publishScheduled($viewer, $id) : $list->publishDraft($viewer, $id))) {
+                return $response->setStatusCode(404)->setJSON(['error' => 'A publishable Work Order was not found.']);
             }
             return $response->setJSON(['id' => $id]);
         } catch (DomainException) {
             return $response->setStatusCode(403)->setJSON(['error' => 'Work order scope is unavailable.']);
         } catch (\RuntimeException) {
-            return $response->setStatusCode(503)->setJSON(['error' => 'Could not publish the draft.']);
+            return $response->setStatusCode(503)->setJSON(['error' => 'Could not publish the Work Order.']);
         }
     }
 
@@ -63,7 +77,11 @@ final class WorkOrderController extends BaseController
             return $response->setStatusCode(422)->setJSON(['error' => 'Check the Work Order ID and page.']);
         }
         try {
-            $data = (new WorkOrderList(Database::connect('ewo')))->detail($viewer, $direction, $id, $page);
+            $list = new WorkOrderList(Database::connect('ewo'));
+            if ($list->missingColumns($direction) !== []) {
+                return $response->setStatusCode(503)->setJSON(['error' => 'Scheduled Work Order schema is unavailable.']);
+            }
+            $data = $list->detail($viewer, $direction, $id, $page);
             return $data === null
                 ? $response->setStatusCode(404)->setJSON(['error' => 'Work Order not found.'])
                 : $response->setJSON($data);
@@ -99,7 +117,7 @@ final class WorkOrderController extends BaseController
                 ]);
             }
             $data = $list->page($viewer, $direction, $filters, $page, $pageSize, $report);
-            if ($direction === 'drafts' && env('ewo.workOrderWrites', false) === true && (int)$viewer['status'] === 1) {
+            if (in_array($direction, ['drafts', 'scheduled'], true) && env('ewo.workOrderWrites', false) === true && (int)$viewer['status'] === 1) {
                 $data['publish_csrf'] = ['header' => csrf_header(), 'hash' => csrf_hash()];
             }
             return $response->setJSON($data);

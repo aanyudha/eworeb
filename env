@@ -74,6 +74,8 @@
 
 # Keep disabled on preserved legacy data. Enable only on an approved writable instance.
 # ewo.workOrderWrites = false
+# ewo.scheduledWorkOrderCreates = false
+# ewo.scheduledWorkOrderWorker = false
 # Private media directory containing images/ and audios/. Leave blank if unavailable.
 # ewo.workOrderMediaRoot =
 # Separate private write root, with images/eworeb and audios/eworeb owned by the PHP runtime.

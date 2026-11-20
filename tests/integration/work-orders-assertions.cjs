@@ -21,7 +21,7 @@ module.exports = async function testWorkOrders(request, login, location) {
       const preview = await result.json()
       assert.match(preview.reason, /posts_logs\.published_at/)
       assert.equal(preview.canChooseScope, account === 'admin')
-      assert.equal(preview.canSchedule, account !== 'employee')
+      assert.equal(preview.canSchedule, false)
       assert.deepEqual(preview.destinationRoles.map(row => row.name), ['Engineering', 'IT', 'Housekeeping'])
       assert.equal(preview.category.name, 'New')
       if (corp === null) {

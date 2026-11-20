@@ -58,11 +58,13 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC','base64'));
   }
   const fixtureEnv=[
-    'CI_ENVIRONMENT = production', 'app.baseURL = '+origin+'/', 'ewo.workOrderWrites = '+Boolean(mysql?.replies), 'ewo.workOrderMediaRoot = '+(mysql?.replies || mysql?.create ? media.replaceAll('\\','/') : ''),
+    'CI_ENVIRONMENT = production', 'app.baseURL = '+origin+'/', 'ewo.workOrderWrites = '+Boolean(mysql?.replies || mysql?.create), 'ewo.workOrderMediaRoot = '+(mysql?.replies || mysql?.create ? media.replaceAll('\\','/') : ''),
     'ewo.workOrderUploadRoot = '+(mysql?.replies || mysql?.create ? uploads.replaceAll('\\','/') : ''),
     'ewo.accountMediaRoot = '+(mysql?.replies ? accountMedia.replaceAll('\\','/') : ''),
     'ewo.masterDataWrites = '+Boolean(mysql?.replies), 'ewo.accountWrites = '+Boolean(mysql?.replies),
     'ewo.workOrderCreateWrites = '+Boolean(mysql?.create),
+    'ewo.scheduledWorkOrderCreates = '+Boolean(mysql?.create),
+    'ewo.scheduledWorkOrderWorker = false',
     'knowledgebase.backend = '+(mysql?.create ? 'mysql' : 'json'),
     ...connection, 'session.savePath = "'+sessionPath+'"',
     'ewo.sessionKey = '+require('node:crypto').randomBytes(32).toString('hex'), 'session.cookieName = '+sessionName,
@@ -79,7 +81,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const env={...process.env,PHPRC:runtime,PHP_INI_SCAN_DIR:''};
   delete env.EWO_REPLY_FIXTURE_ADMIN;
   for (const key of Object.keys(env)) {
-    if (/^(?:CI_ENVIRONMENT|app[._]baseURL|database[._]ewo[._]|ewo[._](?:sessionKey|workOrderWrites|workOrderCreateWrites|workOrderMediaRoot|workOrderUploadRoot|masterDataWrites|accountWrites|accountMediaRoot)|session[._]cookieName|knowledgebase[._](?:directory|backend)|database[._]kb[._]|session[._]savePath)/i.test(key)) delete env[key];
+    if (/^(?:CI_ENVIRONMENT|app[._]baseURL|database[._]ewo[._]|ewo[._](?:sessionKey|workOrderWrites|workOrderCreateWrites|workOrderMediaRoot|workOrderUploadRoot|masterDataWrites|accountWrites|accountMediaRoot|scheduledWorkOrderCreates|scheduledWorkOrderWorker)|session[._]cookieName|knowledgebase[._](?:directory|backend)|database[._]kb[._]|session[._]savePath)/i.test(key)) delete env[key];
   }
   const diagnosis=execFileSync(php,['spark','ewo:diagnose'],{cwd:target,env:{...env,CI_ENVIRONMENT:'development'},encoding:'utf8'});
   assert.match(diagnosis,/database.ewo.database: set/);
