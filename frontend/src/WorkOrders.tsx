@@ -58,8 +58,18 @@ type OrderPage = {
   total: number
   subcategory_available?: boolean
   publish_csrf?: { header: string; hash: string }
+  can_publish_scheduled_drafts?: boolean
 }
-const statusNames: Record<number, string> = { 1: 'New', 2: 'Progress', 3: 'Waiting', 4: 'Closed', 5: 'Pending' }
+const statusNames: Record<number, string> = { 1: 'New', 2: 'Progress', 3: 'Waiting', 4: 'Closed', 5: 'Pending', 6: 'Reopen' }
+
+async function readOrders(url: URL, signal?: AbortSignal): Promise<OrderPage> {
+  const response = await fetch(url, { signal, credentials: 'same-origin', headers: { Accept: 'application/json' } })
+  if (!response.ok) {
+    const problem = await response.json().catch(() => ({}))
+    throw new Error(problem.error || 'Could not load work orders.')
+  }
+  return response.json()
+}
 
 export default function WorkOrders({ endpoint, direction, role, report = false }: { endpoint: string; direction: Direction; role: number; report?: boolean }) {
   const [params, setParams] = useSearchParams()
@@ -78,12 +88,7 @@ export default function WorkOrders({ endpoint, direction, role, report = false }
       const url = new URL(endpoint, location.href)
       url.pathname += '/' + direction
       url.search = search
-      const response = await fetch(url, { signal, credentials: 'same-origin', headers: { Accept: 'application/json' } })
-      if (!response.ok) {
-        const problem = await response.json().catch(() => ({}))
-        throw new Error(problem.error || 'Could not load work orders.')
-      }
-      return response.json()
+      return readOrders(url, signal)
     },
   })
   const result = query.data
@@ -120,13 +125,36 @@ export default function WorkOrders({ endpoint, direction, role, report = false }
   }
 
   async function download(format: 'pdf' | 'xlsx') {
-    if (!result?.items.length) return
+    if (!result?.total) return
     setExporting(true)
     setExportError('')
     try {
-      await exportReport(title, format, result.items.map(row => reportCells(row, result.subcategory_available !== false)))
-    } catch {
-      setExportError('Could not export the report.')
+      const url = new URL(endpoint + '/' + direction, location.href)
+      url.search = search
+      url.searchParams.set('show', '100')
+      url.searchParams.set('page', '1')
+      const first = await readOrders(url)
+      const rows = first.items.map(row => reportCells(row, first.subcategory_available !== false))
+      const seen = new Set(first.items.map(row => row.id))
+      const count = Math.ceil(first.total / first.pageSize)
+      for (let number = 2; number <= count; number++) {
+        url.searchParams.set('page', String(number))
+        const next = await readOrders(url)
+        if (next.total !== first.total || next.subcategory_available !== first.subcategory_available ||
+          next.items.some(row => seen.has(row.id))) {
+          throw new Error('Report results changed during export. Refresh and try again.')
+        }
+        for (const row of next.items) {
+          seen.add(row.id)
+          rows.push(reportCells(row, first.subcategory_available !== false))
+        }
+      }
+      if (seen.size !== first.total || rows.length !== first.total) {
+        throw new Error('Report results changed during export. Refresh and try again.')
+      }
+      await exportReport(title, format, rows)
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : 'Could not export the report.')
     } finally {
       setExporting(false)
     }
@@ -135,8 +163,8 @@ export default function WorkOrders({ endpoint, direction, role, report = false }
   return <>
     <PageHeader title={title}>
       {report && <>
-        <button type="button" className="secondary" disabled={exporting || !result?.items.length} onClick={() => void download('pdf')}>PDF</button>
-        <button type="button" className="secondary" disabled={exporting || !result?.items.length} onClick={() => void download('xlsx')}>Excel</button>
+        <button type="button" className="secondary" disabled={exporting || !result?.total} onClick={() => void download('pdf')}>PDF</button>
+        <button type="button" className="secondary" disabled={exporting || !result?.total} onClick={() => void download('xlsx')}>Excel</button>
       </>}
       {direction === 'scheduled' && <Link className="secondary" to="/work-orders/create">Create Work Order</Link>}
     </PageHeader>
@@ -197,15 +225,15 @@ export default function WorkOrders({ endpoint, direction, role, report = false }
               {result.publish_csrf && <th scope="col">Actions</th>}
             </tr></thead>
             <tbody>{result.items.map(order => <tr key={order.id}>
-              <td>{order.id}</td><td>{direction !== 'drafts'
-                ? <Link to={'/work-orders/' + direction + '/' + order.id} state={{ listSearch: search }}>{order.title || 'Work Order #' + order.id}</Link>
-                : order.title}</td><td>{order.summary}</td>
+              <td>{order.id}</td><td><Link to={'/work-orders/' + direction + '/' + order.id} state={{ listSearch: search }}>
+                {order.title || 'Work Order #' + order.id}</Link></td><td>{order.summary}</td>
               <td>{order.category_id === null ? '' : statusNames[order.category_id] ?? order.category_id}</td><td>{order.corporation ?? order.corp_id}</td><td>{order.department ?? order.dept_id}</td>
               <td>{order.destination_role ?? order.role_id}</td><td>{order.user_id}</td>              <td>{order.created_at}</td><td>{order.edited_at}</td>
               {direction === 'scheduled' && <><td>{Number(order.intervale) > 0 ? order.intervale : 'Unavailable'}</td>
                 <td>{order.published_at && Number(order.intervale) > 0 ? order.published_at : 'Schedule unavailable'}</td>
                 <td>{order.published_at && Number(order.intervale) > 0 ? order.days_remaining : '—'}</td></>}
-              {result.publish_csrf && <td>{(direction === 'scheduled' ? order.published_at && Number(order.intervale) > 0 : String(order.is_scheduled) === '0') &&
+              {result.publish_csrf && <td>{(direction === 'scheduled' ? order.published_at && Number(order.intervale) > 0 :
+                String(order.is_scheduled) === '0' || (result.can_publish_scheduled_drafts && order.published_at && Number(order.intervale) > 0)) &&
                 <button type="button" className="secondary" disabled={publishing !== null}
                   onClick={() => void publishOrder(order.id)}>{publishing === order.id ? 'Publishing…' : direction === 'scheduled' ? 'Publish now' : 'Publish'}</button>}</td>}
             </tr>)}</tbody>

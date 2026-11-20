@@ -139,12 +139,15 @@ module.exports=async function replyAssertions(request,login,location,audit,audio
   const headers = { 'X-Requested-With': 'XMLHttpRequest' }
   assert.equal((await request(publishPath, {}, { headers })).status, 403)
   for (const row of excluded) {
+    assert.equal((await request(draftsPath + '/' + row.id)).status, 404)
     const deniedToken = (await (await request(draftsPath)).json()).publish_csrf
     headers[deniedToken.header] = deniedToken.hash
     assert.equal((await request(draftsPath + '/' + row.id + '/publish', {}, { headers })).status, 404)
     assert.equal(Number(JSON.parse(audit('reply-state', String(row.id))).order.status), 0)
   }
   const check = (await (await request(draftsPath)).json()).publish_csrf
+  assert.equal((await request(draftsPath + '/' + draft.id)).status, 200)
+  assert.equal((await request(draftsPath + '/' + draft.id + '/attachments')).status, 200)
   headers[check.header] = check.hash
   const published = await request(publishPath, {}, { headers })
   assert.equal(published.status, 200, await published.clone().text())
@@ -197,9 +200,22 @@ module.exports=async function replyAssertions(request,login,location,audit,audio
   assert.deepEqual(Buffer.from(await downloadedAudio.arrayBuffer()), wave)
   const count = audit('audio-count')
   const files = readdirSync(audioDirectory).sort()
+  const unlinkPath = audioPath + '/audio/' + downloadable.id + '/unlink'
+  assert.equal((await request(unlinkPath, {}, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })).status, 403)
+  async function unlinkAudio() {
+    const {csrf} = await (await request(audioPath)).json()
+    return request(unlinkPath, {}, {headers: { 'X-Requested-With': 'XMLHttpRequest', [csrf.header]: csrf.hash }})
+  }
+  assert.equal((await unlinkAudio()).status, 200)
+  assert.equal((await unlinkAudio()).status, 404)
+  assert.equal((await request(audioPath + '/audio/' + downloadable.id)).status, 404)
+  const unlinkedCount = audit('audio-count')
+  assert.equal(JSON.parse(unlinkedCount).catalog, JSON.parse(count).catalog)
+  assert.equal(Number(JSON.parse(unlinkedCount).links), Number(JSON.parse(count).links) - 1)
+  assert.deepEqual(readdirSync(audioDirectory).sort(), files, 'Unlink preserves private bytes')
   audit('refuse-audio-link')
   assert.equal((await uploadAudio(true)).status, 503)
-  assert.equal(audit('audio-count'), count, 'audio metadata rolls back if linking fails')
+  assert.equal(audit('audio-count'), unlinkedCount, 'audio metadata rolls back if linking fails')
   assert.deepEqual(readdirSync(audioDirectory).sort(), files, 'Failed link leaves no extra file')
   console.log('Audio upload: download flag, bytes, relation and transaction rollback PASS')
   console.log('Work Order draft and image upload: CSRF, status-only publish, stale publish, MIME, attachment relation and bytes PASS')

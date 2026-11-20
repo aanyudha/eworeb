@@ -1,5 +1,7 @@
 # Rencana migrasi EWO ke CodeIgniter 4
 
+Status penerimaan lokal terkini ada di [matriks parity](FEATURE_PARITY_MATRIX.md) dan [kesiapan UAT pengembangan](OPERATIONAL_READINESS.md#persiapan-uat-pengembangan). Tahapan berikutnya mencakup aktivasi berizin pada akun runtime dengan GRANT minimum, kesiapan host, serta keputusan atas gap yang memengaruhi histori dan cakupan akses.
+
 Audit lokal 18 November 2026 WIB, CI3 3.1.10 commit e4543a70. Snapshot SQL dibaca sebagai referensi DDL. Snapshot berbeda usia dan cakupan, sehingga parity skema live belum terbukti. DDL target akan mengikuti kontrak yang dipakai kode dan fixture yang disetujui.
 
 ## Arsitektur CI3 dan CI4

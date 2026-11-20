@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { ErrorState, PageHeader } from './components'
 
-export default function AccountPassword({ endpoint }: { endpoint: string }) {
+export default function AccountPassword({ endpoint, login }: { endpoint: string; login: string }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
@@ -38,13 +38,13 @@ export default function AccountPassword({ endpoint }: { endpoint: string }) {
     <PageHeader title="Change password" />
     <section className="panel">
       {error && <ErrorState message={error} />}
-      {saved && <p className="empty" role="status">Password changed.</p>}
-      <form className="filter-panel" onSubmit={event => void submit(event)}>
+      {saved ? <p className="empty" role="status">Password changed. <a href={login}>Sign in with your new password</a>.</p> :
+        <form className="filter-panel" onSubmit={event => void submit(event)}>
         <label>Current password<input name="old_password" type="password" autoComplete="current-password" required /></label>
         <label>New password<input name="password" type="password" autoComplete="new-password" required minLength={4} maxLength={50} /></label>
         <label>Confirm new password<input name="password_confirm" type="password" autoComplete="new-password" required minLength={4} maxLength={50} /></label>
         <button type="submit" className="secondary" disabled={saving}>{saving ? 'Saving…' : 'Change password'}</button>
-      </form>
+      </form>}
     </section>
   </>
 }

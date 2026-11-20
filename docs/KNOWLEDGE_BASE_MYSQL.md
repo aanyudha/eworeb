@@ -4,6 +4,8 @@ Adapter MySQL memakai satu tabel tersendiri, **kb_articles**. [DDL](KB_MYSQL_PRO
 
 ## Hasil verifikasi
 
+Regresi penerimaan lokal mengulang Chrome dan HTTP dengan backend MySQL fixture untuk pencarian, detail, editor, draft, publikasi, penarikan, visibilitas, revision conflict dan CSRF. Apache pengembangan melayani portal dengan backend MySQL. Inventaris dan fingerprint setelah regresi mengonfirmasi `kb_articles` tetap berisi nol artikel di pengembangan. [Baseline penerimaan](LEGACY_DATABASE_ALIGNMENT.md#baseline-penerimaan-pengembangan).
+
 MySQL disposable lulus migrasi tiga artikel berisi Unicode, draft publik, publikasi internal, dan publikasi publik. ID, slug, waktu/revisi, urutan konten dan relasi, visibilitas, serta fingerprint cocok. Pengulangan impor dengan snapshot sama lulus dan konflik ditolak. API HTTP dan Chrome lulus untuk admin, CSRF, publikasi, penarikan, pencarian, filter dan URL publik dengan adapter MySQL aktif di fixture.
 
 ## Cutover pengembangan, 20 November 2026 WIB

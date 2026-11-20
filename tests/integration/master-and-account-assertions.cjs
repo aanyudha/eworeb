@@ -58,6 +58,7 @@ module.exports = async function masterAndAccountAssertions(request, login, locat
   assert.equal((await request(password, newPassword, {headers: xhr})).status, 403)
   await submit(password, {...newPassword, old_password: 'incorrect'}, 422)
   await submit(password, newPassword)
+  assert.equal((await request('/api/v1/dashboard')).status,401)
   await request('/logout')
   assert.equal(location(await login('engineering@example.test', 'fixture-password')), '/admin/login')
   assert.equal(location(await login('engineering@example.test', 'fixture-new-password')), '/workspace')
@@ -83,14 +84,27 @@ module.exports = async function masterAndAccountAssertions(request, login, locat
   assert.equal((await request(base + 'users/' + addedAdmin.id + '/edit')).status, 404)
   const staffRoute = base + 'users/' + added.id + '/edit'
   const staffData = (await (await request(staffRoute)).json()).fields
-  assert.deepEqual(Object.keys(staffData), ['first_name','last_name','email','status'])
-  await submit(staffRoute, {...staffData, last_name: 'Updated', status: '0', role_id: '1', corp_id: '2'})
+  assert.deepEqual(Object.keys(staffData), ['first_name','last_name','email','status','role_id','corp_id','dept_id','password'])
+  assert.equal(staffData.password, '')
+  await submit(staffRoute, {...staffData, corp_id: '2', dept_id: '10'}, 422)
+  const replacement = 'fixture-management-password-over-30-bytes'
+  await submit(staffRoute, {...staffData, last_name: 'Updated', status: '0', role_id: '1', corp_id: '2', dept_id: '20',
+    password: replacement})
   await request('/logout')
-  assert.equal(location(await login(createdStaff.email, createdStaff.password)), '/admin/login')
+  assert.equal(location(await login(createdStaff.email, replacement)), '/admin/login')
   assert.equal(location(await login('admin@example.test', 'fixture-password')), '/workspace')
-  await submit(staffRoute, {...staffData, last_name: 'Updated', status: '1'})
+  const changedRoute = base + 'administrators/' + added.id + '/edit'
+  const changed = (await (await request(changedRoute)).json()).fields
+  assert.deepEqual([Number(changed.role_id), Number(changed.corp_id), Number(changed.dept_id)], [1,2,20])
+  const changedEmail = 'fixture-provisioned-updated@example.test'
+  await submit(changedRoute, {...changed, role_id: '3', email: changedEmail, status: '1'})
+  const verificationForm = (await (await request(staffRoute)).json()).fields
+  assert.equal(verificationForm.confirm_email, 0)
+  await submit(staffRoute, {...verificationForm, confirm_email: '1'})
+  assert.ok(!('confirm_email' in (await (await request(staffRoute)).json()).fields))
   await request('/logout')
-  assert.equal(location(await login(createdStaff.email, createdStaff.password)), '/workspace')
+  assert.equal(location(await login(changedEmail, createdStaff.password)), '/admin/login')
+  assert.equal(location(await login(changedEmail, replacement)), '/workspace')
   assert.equal((await request(base + 'administrators/new')).status, 403)
   await request('/logout')
   assert.equal(location(await login('admin@example.test', 'fixture-password')), '/workspace')

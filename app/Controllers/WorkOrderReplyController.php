@@ -12,17 +12,17 @@ use RuntimeException;
 
 final class WorkOrderReplyController extends BaseController
 {
-    public function options(string $id): ResponseInterface
+    public function options(string $id, string $direction = 'incoming'): ResponseInterface
     {
         return $this->run($id, static fn (WorkOrderReply $reply, array $viewer, int $number): array =>
-            $reply->options($viewer, $number));
+            $reply->options($viewer, $number, $direction));
     }
 
-    public function save(string $id): ResponseInterface
+    public function save(string $id, string $direction = 'incoming'): ResponseInterface
     {
-        return $this->run($id, function (WorkOrderReply $reply, array $viewer, int $number): array {
+        return $this->run($id, function (WorkOrderReply $reply, array $viewer, int $number) use ($direction): array {
             $input = $this->request->getPost(['category_id', 'assign_to', 'summary_edit', 'revision']);
-            return ['history_id' => $reply->reply($viewer, $number, $input)];
+            return ['history_id' => $reply->reply($viewer, $number, $input, $direction)];
         });
     }
 

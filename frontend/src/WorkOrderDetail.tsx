@@ -44,7 +44,7 @@ type Detail = {
   }
 }
 
-export default function WorkOrderDetail({ endpoint, direction, replyEnabled = false }: { endpoint: string; direction: 'incoming' | 'outgoing' | 'scheduled'; replyEnabled?: boolean }) {
+export default function WorkOrderDetail({ endpoint, direction, replyEnabled = false }: { endpoint: string; direction: 'incoming' | 'outgoing' | 'drafts' | 'scheduled'; replyEnabled?: boolean }) {
   const { id } = useParams()
   const location = useLocation()
   const [params, setParams] = useSearchParams()
@@ -71,8 +71,9 @@ export default function WorkOrderDetail({ endpoint, direction, replyEnabled = fa
   const [uploadError, setUploadError] = useState('')
   const attachmentUrl = endpoint + '/' + direction + '/' + encodeURIComponent(id ?? '') + '/attachments'
   const attachments = useQuery<{
-    items: { kind: string; id: number; label: string; download: string | null }[]
+    items: { kind: string; id: number; label: string; download: string | null; unlink: string | null }[]
     upload?: { kind: 'image' | 'audio'; header: string; hash: string }
+    csrf?: { header: string; hash: string }
   }>({
     queryKey: ['work-order-attachments', endpoint, direction, id],
     enabled: Boolean(item),
@@ -85,6 +86,29 @@ export default function WorkOrderDetail({ endpoint, direction, replyEnabled = fa
   })
 
   const upload = attachments.data?.upload
+  async function unlinkAudio(url: string) {
+    const csrf = attachments.data?.csrf
+    if (!csrf || !window.confirm('Remove this audio attachment from the Work Order?')) return
+    setUploading(true)
+    setUploadError('')
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', [csrf.header]: csrf.hash },
+      })
+      if (!response.ok) {
+        const problem = await response.json().catch(() => ({}))
+        throw new Error(problem.error || 'Could not remove the attachment.')
+      }
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Could not remove the attachment.')
+    } finally {
+      await attachments.refetch()
+      setUploading(false)
+    }
+  }
+
   async function uploadAttachment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!upload) return
@@ -118,7 +142,7 @@ export default function WorkOrderDetail({ endpoint, direction, replyEnabled = fa
     {isPending && <LoadingState />}
     {error && <ErrorState message={error.message} action={<button type="button" onClick={() => void refetch()}>Retry</button>} />}
     {item && history && <>
-      {replyEnabled && id && <WorkOrderReply key={id} url={endpoint + '/incoming/' + encodeURIComponent(id) + '/reply'} />}
+      {replyEnabled && id && <WorkOrderReply key={direction + id} url={endpoint + '/' + direction + '/' + encodeURIComponent(id) + '/reply'} />}
       <section className="panel">
         <header className="panel-head"><h2>{item.title}</h2></header>
         <div className="empty">
@@ -159,6 +183,8 @@ export default function WorkOrderDetail({ endpoint, direction, replyEnabled = fa
         {attachments.data && (attachments.data.items.length ? <ul>
           {attachments.data.items.map(file => <li key={file.kind + ':' + file.id}>
             {file.download ? <a href={file.download}>{file.label}</a> : <span>{file.label} (unavailable)</span>}
+            {file.unlink && <button className="secondary" type="button" disabled={uploading}
+              onClick={() => void unlinkAudio(file.unlink!)}>Remove audio</button>}
           </li>)}
         </ul> : <p className="empty">No attachments.</p>)}
       </section>

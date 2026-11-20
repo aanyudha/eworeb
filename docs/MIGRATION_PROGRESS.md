@@ -1,5 +1,14 @@
 # Progres migrasi EWO
 
+## Penerimaan migrasi lokal dan audit gap CI3, 20 November 2026 WIB
+
+- `ewo:publish-scheduled --check` memeriksa kontrak skema, waktu database dan timezone legacy serta menghitung template valid, tidak lengkap, terlewat, dan jatuh tempo. Pemeriksaan baca-saja di pengembangan memperoleh `Asia/Jakarta`, lima template, nol valid, dan nol jatuh tempo. Penjadwal tetap nonaktif.
+- Draft memiliki detail dan pekerja berizin dapat mencatat balasan serta histori sesuai cakupan Draft. Publikasi Draft terjadwal yang valid mengubah status seperti CI3 tanpa mengubah jadwal atau histori. Assignment baru membatasi penerima aktif pada corporation dan role tujuan. Audio dapat dilepas dari WO dengan mempertahankan file privat dan baris katalog.
+- Administrator dapat memperbarui role dan pasangan corporation/department, mereset kata sandi, dan mengonfirmasi email. Akun terlindungi dan endpoint tetap memiliki batas administrator. Sesi lama perlu login ulang setelah perubahan sandi, role, cakupan, atau penonaktifan akun. Login menerima panjang sandi yang disimpan jalur pengelolaan akun.
+- Reports In/Out memakai seluruh hasil tersaring pada ekspor PDF/XLSX, memakai cakupan pengguna dan menolak jumlah/ID yang berubah saat pengambilan halaman. Tanggal akhir mencakup satu hari penuh. Jasper dan data historis subkategori tetap tercatat sebagai batas.
+- Konfigurasi lokal memakai penyimpanan WO dan akun di luar `htdocs`. Backup pengembangan terbaru berhasil dipulihkan dan dicocokkan terhadap 19 tabel. Rincian kesiapan, sakelar dan keputusan yang tertunda ada di [kesiapan operasional](OPERATIONAL_READINESS.md#persiapan-uat-pengembangan).
+- Regresi akhir lulus pada tiga mode MySQL/Chrome, termasuk XLSX 131 WO dari beberapa halaman API, PDF A3, editor KB MySQL, izin, CSRF, konflik revisi, rollback dan dua worker serentak. PHP lint, PHPUnit 10 tes dan 40 assertions, TypeScript dan Vite lulus. Audit dependency runtime npm dan Composer tidak melaporkan advisori.
+
 ## Scheduled WO pada pengembangan, 20 November 2026 WIB
 
 - Scheduled WO punya tautan langsung di sidebar React serta daftar, detail, histori dan lampiran scoped. Form Create yang sama menyediakan tanggal publikasi dan interval hari untuk pemegang izin. Draft tetap mengikuti status yang dikirim, sementara daftar Scheduled mengikuti kriteria Published CI3.

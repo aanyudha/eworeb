@@ -100,6 +100,19 @@ final class AdminIdentityTest extends CIUnitTestCase
         self::assertFalse($auth->allows(['role'=>'unknown'], 'add_post'));
     }
 
+    public function testSignedInAccountMustStillBeActiveAndHaveTheSameCredentialsAndScope(): void
+    {
+        $auth = $this->identity(true);
+        self::assertSame('', $auth->authenticate('staff@example.test', 'fixture-password', '127.0.0.1'));
+        $user = $this->database->table('users')->where('id', 1);
+        $user->update(['status' => 0]);
+        self::assertNull($auth->currentUser());
+        $user->where('id', 1)->update(['status' => 1, 'role_id' => 7]);
+        self::assertNull($auth->currentUser());
+        $user->where('id', 1)->update(['role_id' => 4, 'password' => password_hash('replacement', PASSWORD_BCRYPT)]);
+        self::assertNull($auth->currentUser());
+    }
+
     private function identity(bool $shouldRotate): AdminIdentity
     {
         $session = $this->createMock(SessionInterface::class);

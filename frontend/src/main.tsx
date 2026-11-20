@@ -159,6 +159,7 @@ function Workspace() {
       {workOrdersApi && <Route path="/work-orders/incoming/:id" element={<WorkOrderDetail endpoint={workOrdersApi} direction="incoming" replyEnabled={replyAccess === 'enabled'} />} />}
       {workOrdersApi && <Route path="/work-orders/outgoing/:id" element={<WorkOrderDetail endpoint={workOrdersApi} direction="outgoing" />} />}
       {workOrdersApi && <Route path="/work-orders/drafts" element={<WorkOrders endpoint={workOrdersApi} direction="drafts" role={Number(workOrderRole)} />} />}
+      {workOrdersApi && <Route path="/work-orders/drafts/:id" element={<WorkOrderDetail endpoint={workOrdersApi} direction="drafts" replyEnabled={replyAccess === 'enabled'} />} />}
       {workOrdersApi && scheduleAccess === 'enabled' && <Route path="/work-orders/scheduled" element={<WorkOrders endpoint={workOrdersApi} direction="scheduled" role={Number(workOrderRole)} />} />}
       {workOrdersApi && scheduleAccess === 'enabled' && <Route path="/work-orders/scheduled/:id" element={<WorkOrderDetail endpoint={workOrdersApi} direction="scheduled" />} />}
       {reportsApi && <Route path="/reports/incoming" element={<WorkOrders key="reports-in" endpoint={reportsApi} direction="incoming" role={Number(workOrderRole)} report />} />}
@@ -168,7 +169,7 @@ function Workspace() {
       {profileApi && <Route path="/account/profile" element={<ProfileAndBranding key="profile" endpoint={profileApi} />} />}
       {visualApi && <Route path="/settings/visual" element={<ProfileAndBranding key="visual" endpoint={visualApi} visual />} />}
       {settingsApi && <Route path="/settings/application" element={<WorkspaceSettings key="settings" endpoint={settingsApi} title="Application settings" />} />}
-      {passwordApi && <Route path="/account/password" element={<AccountPassword endpoint={passwordApi} />} />}
+      {passwordApi && login && <Route path="/account/password" element={<AccountPassword endpoint={passwordApi} login={login} />} />}
       {knowledgeAdmin && <Route path="/knowledge/*" element={<KnowledgeAdmin />} />}
       <Route path="*" element={<ErrorState message="This workspace page does not exist." action={<NavLink to="/">Return to dashboard</NavLink>} />} />
     </Routes>

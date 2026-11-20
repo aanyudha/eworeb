@@ -1,5 +1,18 @@
 # Kesiapan operasi EWO Reborn
 
+## Persiapan UAT pengembangan
+
+| Kemampuan | Status dan langkah aktivasi |
+| --- | --- |
+| Create biasa dan Scheduled | Kedua gate authoring aktif. Jalankan `php spark ewo:publish-scheduled --check` untuk inventaris baca-saja. Pengembangan melaporkan lima template tidak lengkap dan nol valid. |
+| Balasan, Closed, Reopen, Draft, assignment dan lampiran | `ewo.workOrderWrites=false`. Ikuti UAT kasus dan matriks peran di bawah. Operasi pada pengembangan menggunakan WO yang ditetapkan operator. |
+| Master Data | `ewo.masterDataWrites=false`. Keenam editor memakai permission CI3 dan cakupan sesi. UAT mencakup parent dan parent lintas corporation, status inti dan rollback. |
+| Akun, role, profil dan pengaturan | `ewo.accountWrites=false`. Persiapkan UAT administrator dan akun terpisah, login ulang setelah perubahan kredensial atau scope, serta pemeriksaan akses privat. Buat skenario aktivasi terpisah untuk delegasi korporat. |
+
+Media WO dan akun terpisah di `C:/xampp8512/eworeb-private-media`. ACL memberi akses kepada identitas Apache dan SYSTEM. Arsip CI3 tetap mount baca-saja. Apache loopback mengembalikan 404 untuk direktori media privat dan `writable`, serta 401 untuk permintaan lampiran tanpa sesi. Jalur gambar katalog dan avatar lulus pada PHP fixture dengan GD. Konfigurasi PHP XAMPP aktif masih perlu mengaktifkan GD dan memuat ulang Apache sebelum UAT kedua jalur tersebut.
+
+Pengembangan masih memakai akun database root. Sebelum membuka gate pada database yang dipertahankan, siapkan akun runtime dengan GRANT per kemampuan, batasi akses operator ke HTTPS atau loopback, pastikan cadangan database dan media mencakup baseline terbaru, dan tetapkan record dan akun UAT yang sah. Rollback operasional dimulai dengan menonaktifkan gate terkait. Rekonsiliasi transaksi dan referensi berkas yang sudah diterima sebelum memulihkan backup agar hasil yang sah tidak hilang. [Bukti backup dan restore](LEGACY_DATABASE_ALIGNMENT.md#baseline-penerimaan-pengembangan).
+
 ## UAT terbatas per sakelar
 
 Gunakan corpus sintetis dan instance MySQL terisolasi untuk setiap langkah tulis berikut. Untuk eksekusi pengembangan, pemilik menetapkan akun, corporation, record, jadwal, dan cakupan transaksi secara terpisah. Perubahan konfigurasi modul KB memakai backend tersendiri.
@@ -16,7 +29,7 @@ Gunakan corpus sintetis dan instance MySQL terisolasi untuk setiap langkah tulis
 
 - Login Apache dengan akun legacy sudah diverifikasi pada tahap sebelumnya. Workspace React adalah dashboard operasional. Alias /admin mengarah ke Workspace melalui filter sesi dan admin_panel.
 - Dashboard, Incoming, Outgoing, Drafts, detail dan histori, direktori, serta profil sendiri tersedia untuk penerimaan baca-saja sesuai izin.
-- Reports In dan Reports Out memuat data aktual dengan izin admin_panel dan add_post. Total serta paginasi mengikuti query arah dan scope yang sama. Scope non-admin berasal dari sesi. Pada skema tanpa posts.subcategory_id, kolom kategori memuat kategori utama dan label “Subcategory unavailable”. Layar, PDF A3 dan XLSX memakai array sel yang sama untuk halaman hasil saat ini. Jasper CI3 dan paritas laporan penuh berada di luar hasil ini.
+- Reports In dan Reports Out memuat data aktual dengan izin admin_panel dan add_post. Total dan paginasi mengikuti query arah dan scope yang sama. Scope non-admin berasal dari sesi. Tabel dan ekspor PDF A3/XLSX memakai kolom yang sama. Ekspor mengambil seluruh hasil filter. Pada skema tanpa posts.subcategory_id, kolom kategori memuat kategori utama dan label “Subcategory unavailable”. Layout Jasper CI3 berada di luar hasil ini.
 - Root arsip CI3 dipasang sebagai sumber baca-saja melalui .env lokal. Resolver menemukan 1.924 dari 17.469 referensi gambar utama dan 302 dari 3.126 referensi gambar tambahan. Detail WO hanya mengunduh file yang terkait pada WO dalam scope. Lima referensi avatar dan kedua referensi branding memiliki file lokal dalam audit. MIME, root dan path tetap diperiksa sebelum penyajian. Lengkapi arsip di lokasi privat yang disetujui untuk memenuhi referensi sisanya.
 - Knowledge Center dan editor memakai `kb_articles` di MySQL pengembangan TCP 3310 setelah parity, backup dan restore lulus. Katalog awal kosong. Pengujian penulisan admin memakai fixture dan smoke pengembangan bersifat baca-saja. [Status cutover dan rollback KB](KNOWLEDGE_BASE_MYSQL.md#cutover-pengembangan-20-november-2026-wib).
 

@@ -51,7 +51,7 @@ final class WorkOrderList
         if (isset($filters['dateChoice'], $filters['tglAwal'], $filters['tglAkhir'])) {
             $dateColumn = 'p.' . $filters['dateChoice'];
             $query->where($dateColumn . ' >=', $filters['tglAwal'])
-                ->where($dateColumn . ' <=', $filters['tglAkhir']);
+                ->where($dateColumn . ' <=', $filters['tglAkhir'] . ' 23:59:59.999999');
         }
 
         $total = (int) $query->countAllResults(false);
@@ -62,6 +62,9 @@ final class WorkOrderList
         }
         if ($direction === 'drafts') {
             $query->select('p.is_scheduled');
+            if ($this->missingColumns('scheduled') === []) {
+                $query->select('p.published_at, p.intervale');
+            }
         }
         if ($direction === 'scheduled') {
             $query->select('p.intervale, p.published_at');
@@ -97,7 +100,7 @@ final class WorkOrderList
 
     public function detail(array $viewer, string $direction, int $id, int $page): ?array
     {
-        if (!in_array($direction, ['incoming', 'outgoing', 'scheduled'], true)
+        if (!in_array($direction, ['incoming', 'outgoing', 'drafts', 'scheduled'], true)
             || !(new DashboardRepository($this->db))->supports($viewer)) {
             throw new DomainException('Work order scope is unavailable.');
         }
@@ -149,7 +152,7 @@ final class WorkOrderList
 
     public function scopedActive(array $viewer, string $direction, int $id, bool $lock = false): ?array
     {
-        if (!in_array($direction, ['incoming', 'outgoing', 'scheduled'], true) || !(new DashboardRepository($this->db))->supports($viewer)) {
+        if (!in_array($direction, ['incoming', 'outgoing', 'drafts', 'scheduled'], true) || !(new DashboardRepository($this->db))->supports($viewer)) {
             throw new DomainException('Work order scope is unavailable.', 403);
         }
         $query = $this->db->table('posts p')->where('p.id', $id);
@@ -175,6 +178,9 @@ final class WorkOrderList
         if ($direction === 'scheduled') {
             $query->where(self::SCHEDULED);
             $this->applyScheduleScope($query, $viewer);
+        } elseif ($direction === 'drafts') {
+            $query->where('p.status !=', 1);
+            $this->applyDirectionalScope($query, $viewer, [], false);
         } else {
             $query->where(self::ACTIVE);
             $this->applyDirectionalScope($query, $viewer, [], $direction === 'incoming');
@@ -194,14 +200,20 @@ final class WorkOrderList
     }
 
 
-    public function publishDraft(array $viewer, int $id): bool
+    public function publishDraft(array $viewer, int $id, bool $canSchedule): bool
     {
         if (!(new DashboardRepository($this->db))->supports($viewer)) {
             throw new DomainException('Work order scope is unavailable.', 403);
         }
 
-        $query = $this->db->table('posts p')->where('p.id', $id)->where('p.status !=', 1)
+        $query = $this->db->table('posts p')->where('p.id', $id)->where('p.status !=', 1)->groupStart()
             ->where('p.is_scheduled', 0);
+        if ($canSchedule && $this->missingColumns('scheduled') === []) {
+            $query->orGroupStart()->where('p.is_scheduled', 1)
+                ->where("p.published_at >= '1000-01-01 00:00:00' AND p.intervale > 0
+                    AND DATE_ADD(p.published_at, INTERVAL p.intervale DAY) IS NOT NULL", null, false)->groupEnd();
+        }
+        $query->groupEnd();
         $this->applyDirectionalScope($query, $viewer, [], false);
         if (!$query->update(['status' => 1])) {
             throw new \RuntimeException('Could not publish the draft.');

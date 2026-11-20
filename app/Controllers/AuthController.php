@@ -46,7 +46,7 @@ final class AuthController extends BaseController
         if (trim($email) === '' || mb_strlen($email) > 200) {
             $errors[] = 'email_invalid';
         }
-        if (trim($password) === '' || mb_strlen($password) > 30) {
+        if (trim($password) === '' || strlen($password) > 72 || str_contains($password, "\0")) {
             $errors[] = 'password_invalid';
         }
 

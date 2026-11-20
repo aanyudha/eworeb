@@ -16,17 +16,17 @@ type DirectoryPage = {
 type EditForm = {
   fields: Record<string, string | number | null>
   checks?: string[]
-  choices?: Record<string, {value: string | number; label: string}[]>
+  choices?: Record<string, {value: string | number; label: string; corp_id?: string | number}[]>
   csrf: { header: string; hash: string }
 }
 
 const editLabels: Record<string, string> = {
   name: 'Name', order: 'Order', corp_code: 'Corporation code', name_slug: 'Slug',
-  lang_id: 'Language ID', color: 'Color', visibility: 'Visibility', parent_id: 'Parent ID', corp_id: 'Corporation ID',
+  lang_id: 'Language ID', color: 'Color', visibility: 'Visibility', parent_id: 'Parent ID', corp_id: 'Corporation',
   admin_panel: 'Admin panel', add_post: 'Add post', manage_all_posts: 'Manage all posts',
   navigation: 'Navigation', categories: 'Categories', users: 'Users', settings: 'Settings',
   first_name: 'First name', last_name: 'Last name', email: 'Email', password: 'Initial password',
-  dept_id: 'Department ID', role_id: 'Role', status: 'Account status',
+  dept_id: 'Department', role_id: 'Role', status: 'Account status', confirm_email: 'Mark current email as verified',
 }
 const numericFields = ['order', 'lang_id', 'visibility', 'parent_id', 'corp_id', 'dept_id']
 const relationFields = ['lang_id', 'parent_id', 'corp_id']
@@ -58,6 +58,7 @@ export default function AdminDirectory({ endpoint, title }: { endpoint: string; 
   const [editing, setEditing] = useState<{ path: string; existing: boolean } | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [chosenCorporation, setChosenCorporation] = useState<string | null>(null)
   const editor = useQuery<EditForm>({
     queryKey: ['directory-editor', endpoint, editing?.path],
     enabled: editing !== null,
@@ -75,6 +76,7 @@ export default function AdminDirectory({ endpoint, title }: { endpoint: string; 
   })
   function openEditor(path: string, existing: boolean) {
     setSaveError('')
+    setChosenCorporation(null)
     setEditing({ path, existing })
   }
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -129,16 +131,21 @@ export default function AdminDirectory({ endpoint, title }: { endpoint: string; 
       {editor.error && <ErrorState message={editor.error.message} />}
       {saveError && <ErrorState message={saveError} />}
       {editor.data && <form className="filter-panel" key={editing.path} onSubmit={event => void save(event)}>
-        {Object.entries(editor.data.fields).map(([name, value]) => <label key={name}>{editLabels[name]}
+        {Object.entries(editor.data.fields).map(([name, value]) => <label key={name}>{name === 'password' && editing.existing ? 'New password (optional)' : editLabels[name]}
           {name === 'status' ? <select name={name} defaultValue={value ?? ''} required>
             <option value="1">Active</option><option value="0">Inactive</option>
-          </select> : editor.data?.choices?.[name] ? <select name={name} defaultValue={value ?? ''} required>
+          </select> : editor.data?.choices?.[name] ? <select name={name} required
+            key={name === 'dept_id' ? chosenCorporation : name}
+            defaultValue={name === 'dept_id' && chosenCorporation !== null ? '' : value ?? ''}
+            onChange={name === 'corp_id' ? event => setChosenCorporation(event.target.value) : undefined}>
             <option value="">Select</option>
-            {editor.data.choices[name].map(option => <option value={option.value} key={option.value}>{option.label}</option>)}
+            {editor.data.choices[name]
+              .filter(option => option.corp_id === undefined || String(option.corp_id) === (chosenCorporation ?? String(editor.data?.fields.corp_id ?? '')))
+              .map(option => <option value={option.value} key={option.value}>{option.label}</option>)}
           </select> : editor.data?.checks?.includes(name) ? <>
             <input name={name} type="hidden" value="0" />
             <input name={name} type="checkbox" value="1" defaultChecked={Number(value) === 1} />
-          </> : <input name={name} defaultValue={value ?? ''} required={name !== 'name_slug'}
+          </> : <input name={name} defaultValue={value ?? ''} required={name !== 'name_slug' && !(name === 'password' && editing.existing)}
             type={numericFields.includes(name) ? 'number' : name === 'password' || name === 'email' ? name : 'text'}
             autoComplete={name === 'password' ? 'new-password' : undefined}
             min={['order', 'visibility'].includes(name) ? 0 : 1} max={name === 'visibility' ? 2 : undefined}

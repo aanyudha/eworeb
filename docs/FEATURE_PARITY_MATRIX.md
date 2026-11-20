@@ -8,25 +8,37 @@
 | Sidebar Workspace dan menu akun | Browser verified | Menu WO langsung, dua grup berdasarkan izin, profil dan kata sandi di menu akun, deep link, keyboard, compact, tablet dan mobile. |
 | Incoming, Outgoing, detail dan history | Read-only working | API mengikuti scope WO. Arsip baca-saja terpasang sebagian dan unduhan mengikuti relasi dan pemeriksaan izin. |
 | Balasan, assignment, completion dan reopen tipe post | Write verified on isolated MySQL | Perubahan dan histori dalam satu transaksi dengan pemeriksaan revisi. |
-| Publikasi Draft biasa | Write verified on isolated MySQL | Daftar React dengan konfirmasi. Hanya `status` berubah. Filter scope, penolakan lintas corporation atau department, CSRF dan pengiriman ulang diuji. |
-| Lampiran gambar dan audio | Write verified on isolated MySQL | Gambar tambahan pada tipe post dan audio pada tipe audio untuk Incoming yang memenuhi syarat. Format, izin unduh audio dan rollback diuji. |
+| Drafts | Detail, reply and publication | Detail, histori dan lampiran mengikuti scope Draft. Publikasi mengubah `status` saja. Draft terjadwal memerlukan `manage_all_posts` dan kontrak tanggal/interval yang valid. Penghapusan Draft tercatat pada daftar gap di bawah. |
+| Lampiran gambar dan audio | Private storage configured | Gambar tambahan untuk tipe post dan audio untuk tipe audio pada Incoming berizin. Pelepasan audio menghapus relasi saja. Katalog gambar Create dan avatar memerlukan GD pada runtime. |
 | Categories dan Subcategories | Write verified on isolated MySQL | Tambah dan edit di tabel categories. ID status WO 1–6 terkunci. Validasi parent dan bahasa. |
 | Locations dan Sublocations | Write verified on isolated MySQL | Tambah dan edit dengan corporation dari sesi untuk non-admin. Parent lintas corporation ditolak. |
 | Departments | Write verified on isolated MySQL | Tambah dan edit dengan scope corporation. Form legacy memakai visibility tersembunyi untuk pembuatan. |
 | Corporations | Write verified on isolated MySQL | Administrator menambah dan mengedit nama, kode dan urutan. Form aktif CI3 tidak memiliki kontrol status. |
-| Users dan Administrators | Write verified on isolated MySQL | Administrator menambah akun, mengedit nama dan email, dan mengaktifkan atau menonaktifkan login baru. Sesi yang sudah aktif mengikuti perilaku legacy. Penggantian role, pemindahan corporation atau department dan delegasi mutasi ke pemegang izin users belum diterapkan. |
+| Users dan Administrators | Administrator workflow, delegated editing pending | Administrator menambah dan mengedit akun, role, corporation/department, status, kata sandi, dan konfirmasi email. Perubahan kredensial atau scope membatalkan sesi lama. Hak delegasi korporat dan penghapusan akun tercatat pada daftar gap di bawah. |
 | Roles dan Permissions | Write verified on isolated MySQL | Hanya administrator. Tujuh flag yang benar-benar ditulis Auth_model::update_role. Role administrator terlindungi. |
 | My profile | Write verified on isolated MySQL | Cakupan akun sendiri. Email memerlukan password saat ini dan hanya dapat berubah saat email verification nonaktif. Avatar memerlukan GD dan penyimpanan privat. |
 | Change password | Write verified on isolated MySQL | Current password wajib dan hash baru kompatibel dengan login legacy. |
 | Application settings dan Visual Settings | Write verified on isolated MySQL | Timezone, field teks aktif, logo raster dan favicon PNG untuk login serta Workspace. Email Settings dan konfigurasi HTML masih tertunda. |
 | Create WO biasa dan media | Enabled on development TCP 3310, writes verified on isolated MySQL | Description opsional, Draft/Publish, histori, pemilih utama dan tambahan, upload katalog privat saat root tersedia, validasi scope, CSRF dan rollback. Notifikasi subscriber tidak tersedia pada form aktif CI3. |
 | Scheduled WO | Menu and authoring active on development TCP 3310 | Daftar Published, detail dan histori mengikuti izin dan scope. Pembuatan melalui Create Work Order. Tanggal dan interval historis yang kosong tampil unavailable. Publikasi manual mengikuti handler CI3 dan berada di balik sakelar WO yang masih false. Penghapusan template tidak disediakan untuk menjaga record historis. Worker lulus fixture exact-minute, konkurensi dan rollback. Cron pengembangan belum aktif. |
-| Reports In dan Reports Out | Read-only working with limitation | Baris dan scope dari data aktual. Penanda subkategori tidak tersedia sama pada tabel, PDF, dan XLSX. Hasil ini tidak menetapkan paritas lengkap dengan Jasper. |
+| Reports In dan Reports Out | Scoped PDF/XLSX | Ekspor semua hasil filter dan menyediakan label subkategori historis yang tidak tersedia. Template dan grouping Jasper lama belum setara. |
 | Edit gallery dan ordered list | Blocked by schema | Tabel relasi item CI3 tidak tersedia pada schema aktif. |
 | Edit metadata audio dan video | Not yet migrated | Source CI3 memiliki view. Jalur lokal memakai post_type yang seluruhnya post. Detail audio baru sebatas lampiran. |
 | Knowledge Center dan editor | MySQL active on development TCP 3310 | `kb_articles` terpisah. Parity awal 0 artikel, pembacaan MySQL terverifikasi di Apache pengembangan. Alur admin, draft, publikasi, relasi terurut, konflik revisi, visibilitas dan URL positif diuji pada fixture. |
 
 Operasi tulis di atas diuji pada MySQL terisolasi. Pengembangan `eworeb` TCP 3310 mengaktifkan sakelar Create biasa dan pembuatan Scheduled.
+
+### Hasil audit fungsi CI3 di luar alur utama
+
+| Fungsi CI3 | Hasil parity dan dependensi |
+| --- | --- |
+| Hapus fisik Draft, Scheduled, master dan akun | Aktif pada beberapa view CI3. Skema pengembangan memiliki nol foreign key yang dideklarasikan. Penghapusan parent, akun, WO dan template dapat memutus akses ke relasi atau histori. Perlu kebijakan retensi dan kontrak dependensi sebelum API hard delete dapat dibuka. |
+| Edit pengguna oleh role korporat | View CI3 memberi role `author3` kontrol reset dan pergantian role, termasuk opsi admin. CI4 membatasi mutasi akun kepada administrator. Delegasi yang memisahkan akun korporat dari privilege administrator masih perlu matriks yang disetujui. |
+| Audio/video, gallery dan ordered list | Route tambah tipe ini dikomentari di CI3. Route update bercabang menurut `post_type`, namun 19.813 WO pengembangan bertipe `post`. Audio berkas sudah diuji pada fixture. Metadata video, relasi item gallery/ordered list, dan pemilihan audio katalog existing belum memperoleh UAT atas data nyata. |
+| Email Settings, preview dan konfirmasi berbasis token | Route Email Settings dan preview masih ada pada CI3, menu Email Settings dikomentari, dan `email_verification=0` di pengembangan. Administrator CI4 dapat mengonfirmasi akun. Pengiriman email, preview, dan konfirmasi melalui tautan menunggu konfigurasi SMTP dan kebijakan pengiriman yang dapat diuji. |
+| Visual Settings dan Application Settings | Form CI4 mendukung teks aplikasi, timezone, logo dan favicon. Branding mentah dan HTML konfigurasi tetap menjadi gap karena dirender pada halaman yang dibuka akun lain dan belum memiliki kontrak sanitasi. |
+| Download APK CI3 | Endpoint langsung menunjuk `TentremApps.apk` pada arsip lama. Belum ada APK yang endpoint, signature, dan kompatibilitasnya disetujui untuk CI4. |
+| Reports by finished date, Jasper, navigasi CMS, feeds, galeri publik, komentar dan newsletter | Menu CMS tersebut dikomentari pada sidebar EWO. Method `reports2` dikomentari meskipun route masih ada. Reports In/Out CI4 dapat difilter berdasarkan replied date dan mengekspor hasil tersaring. Template Jasper CI3 memakai koneksi berbeda dan belum menjadi report layout CI4. |
 
 ## Bukti dashboard tunggal dan alur WO sebelumnya, 19 November 2026 WIB
 

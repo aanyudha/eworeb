@@ -43,10 +43,7 @@ final class WorkOrderAttachments
 
     public function uploadKind(array $viewer, string $direction, array $post): ?string
     {
-        if ($direction !== 'incoming' || env('ewo.workOrderWrites', false) !== true
-            || !class_exists(\finfo::class) || (int)$viewer['status'] !== 1
-            || !in_array((int)$viewer['role_id'], [1, 7, (int)$post['role_id']], true)
-            || !service('ewoIdentity')->allows($viewer, 'manage_all_posts')) {
+        if (!$this->canModify($viewer, $direction, $post) || !class_exists(\finfo::class)) {
             return null;
         }
         $kind = match ($post['post_type']) {
@@ -54,11 +51,45 @@ final class WorkOrderAttachments
             'audio' => 'audio',
             default => null,
         };
-        if ($kind === null || (int)$post['category_id'] === 4) {
+        if ($kind === null) {
             return null;
         }
         $dir = $this->uploadDirectory($kind);
         return $dir !== null && is_writable($dir) ? $kind : null;
+    }
+
+    public function canModify(array $viewer, string $direction, array $post): bool
+    {
+        return $direction === 'incoming' && env('ewo.workOrderWrites', false) === true
+            && (int) $viewer['status'] === 1 && (int) $post['category_id'] !== 4
+            && in_array((int) $viewer['role_id'], [1, 7, (int) $post['role_id']], true)
+            && service('ewoIdentity')->allows($viewer, 'manage_all_posts');
+    }
+
+    public function unlinkAudio(array $viewer, int $postId, int $relationId): void
+    {
+        $this->db->transException(true);
+        if (!$this->db->transBegin()) {
+            throw new RuntimeException('Could not begin audio attachment removal.');
+        }
+        try {
+            $post = (new WorkOrderList($this->db))->scopedActive($viewer, 'incoming', $postId, true);
+            if ($post === null || $post['post_type'] !== 'audio' || !$this->canModify($viewer, 'incoming', $post)) {
+                throw new DomainException('This Work Order cannot remove audio attachments.', 403);
+            }
+            if (!$this->db->table('post_audios')->where(['id' => $relationId, 'post_id' => $postId])->delete()) {
+                throw new RuntimeException('Could not remove the audio attachment link.');
+            }
+            if ($this->db->affectedRows() !== 1) {
+                throw new DomainException('Audio attachment not found.', 404);
+            }
+            if (!$this->db->transStatus() || !$this->db->transCommit()) {
+                throw new RuntimeException('Could not commit the audio attachment removal.');
+            }
+        } catch (Throwable $error) {
+            $this->db->transRollback();
+            throw $error;
+        }
     }
 
     public function upload(array $viewer, string $direction, int $id, string $kind, ?UploadedFile $file, array $input): void

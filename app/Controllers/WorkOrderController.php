@@ -35,7 +35,8 @@ final class WorkOrderController extends BaseController
         if (env('ewo.workOrderWrites', false) !== true) {
             return $response->setStatusCode(503)->setJSON(['error' => 'Work Order publication is disabled in this environment.']);
         }
-        $viewer = service('ewoIdentity')?->currentUser();
+        $identity = service('ewoIdentity');
+        $viewer = $identity?->currentUser();
         if ($viewer === null || (int)$viewer['status'] !== 1) {
             return $response->setStatusCode(403)->setJSON(['error' => 'Draft publication permission is unavailable.']);
         }
@@ -48,7 +49,8 @@ final class WorkOrderController extends BaseController
             if ($scheduled && $list->missingColumns('scheduled') !== []) {
                 return $response->setStatusCode(503)->setJSON(['error' => 'Scheduled Work Order schema is unavailable.']);
             }
-            if (!($scheduled ? $list->publishScheduled($viewer, $id) : $list->publishDraft($viewer, $id))) {
+            if (!($scheduled ? $list->publishScheduled($viewer, $id) :
+                $list->publishDraft($viewer, $id, $identity->allows($viewer, 'manage_all_posts')))) {
                 return $response->setStatusCode(404)->setJSON(['error' => 'A publishable Work Order was not found.']);
             }
             return $response->setJSON(['id' => $id]);
@@ -119,6 +121,9 @@ final class WorkOrderController extends BaseController
             $data = $list->page($viewer, $direction, $filters, $page, $pageSize, $report);
             if (in_array($direction, ['drafts', 'scheduled'], true) && env('ewo.workOrderWrites', false) === true && (int)$viewer['status'] === 1) {
                 $data['publish_csrf'] = ['header' => csrf_header(), 'hash' => csrf_hash()];
+                if ($direction === 'drafts') {
+                    $data['can_publish_scheduled_drafts'] = service('ewoIdentity')->allows($viewer, 'manage_all_posts');
+                }
             }
             return $response->setJSON($data);
         } catch (DomainException) {

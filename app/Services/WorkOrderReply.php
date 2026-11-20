@@ -24,9 +24,9 @@ final class WorkOrderReply
     {
     }
 
-    public function options(array $viewer, int $id): array
+    public function options(array $viewer, int $id, string $direction = 'incoming'): array
     {
-        $row = $this->eligible($viewer, $id, false);
+        $row = $this->eligible($viewer, $id, $direction, false);
         return [
             'revision' => $this->revision($row),
             'category_id' => $row['category_id'],
@@ -36,7 +36,7 @@ final class WorkOrderReply
         ];
     }
 
-    public function reply(array $viewer, int $id, array $input): int
+    public function reply(array $viewer, int $id, array $input, string $direction = 'incoming'): int
     {
         $category = filter_var($input['category_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $assignee = filter_var($input['assign_to'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
@@ -53,12 +53,14 @@ final class WorkOrderReply
             throw new RuntimeException('Could not begin Work Order reply.');
         }
         try {
-            $row = $this->eligible($viewer, $id, true);
+            $row = $this->eligible($viewer, $id, $direction, true);
             if (!hash_equals($this->revision($row), $revision)) {
                 throw new DomainException('The Work Order changed. Reload before replying.', 409);
             }
-            if ($this->categoryQuery($row)->where('id', $category)->get()->getRowArray() === null
-                || $this->assigneeQuery($row)->where('id', $assignee)->get()->getRowArray() === null) {
+            $categoryQuery = $this->categoryQuery($row)->select('id')->where('id', $category);
+            $assigneeQuery = $this->assigneeQuery($row)->select('id')->where('id', $assignee);
+            if ($this->db->query($categoryQuery->getCompiledSelect() . ' FOR SHARE')->getRowArray() === null
+                || $this->db->query($assigneeQuery->getCompiledSelect() . ' FOR SHARE')->getRowArray() === null) {
                 throw new DomainException('Status or assignee is outside the available legacy choices.', 422);
             }
             $timezone = $this->db->table('general_settings')->select('timezone')->where('id', 1)->get()->getRowArray()['timezone'] ?? '';
@@ -82,12 +84,12 @@ final class WorkOrderReply
         }
     }
 
-    private function eligible(array $viewer, int $id, bool $lock): array
+    private function eligible(array $viewer, int $id, string $direction, bool $lock): array
     {
         if ((int)($viewer['status'] ?? 0) !== 1) {
             throw new DomainException('Work Order reply permission is unavailable.', 403);
         }
-        $row = (new WorkOrderList($this->db))->scopedActive($viewer, 'incoming', $id, $lock);
+        $row = (new WorkOrderList($this->db))->scopedActive($viewer, $direction, $id, $lock);
         if ($row === null || $row['post_type'] !== 'post') {
             throw new DomainException('Work Order not found.', 404);
         }
@@ -105,7 +107,7 @@ final class WorkOrderReply
 
     private function assigneeQuery(array $row): \CodeIgniter\Database\BaseBuilder
     {
-        return $this->db->table('users')->where(['corp_id' => $row['corp_id'], 'role_id' => $row['role_id']]);
+        return $this->db->table('users')->where(['corp_id' => $row['corp_id'], 'role_id' => $row['role_id'], 'status' => 1]);
     }
 
     private function revision(array $row): string

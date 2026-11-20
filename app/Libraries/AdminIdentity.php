@@ -25,7 +25,7 @@ final class AdminIdentity
         if ($user === null || !$this->passwords->verify($password, (string) $user['password'])) {
             return 'login_error';
         }
-        if ($user['status'] == 0) {
+        if ((int) $user['status'] !== 1) {
             return 'message_ban_error';
         }
 
@@ -38,6 +38,7 @@ final class AdminIdentity
             'vr_sess_ip_address'   => $ip,
             'vr_sess_user_role_id' => $user['role_id'],
             'vr_sess_app_key'      => $this->sessionKey,
+            'vr_sess_account_state' => $this->accountState($user),
         ]);
 
         return '';
@@ -51,7 +52,19 @@ final class AdminIdentity
             return null;
         }
 
-        return $this->users->findById((int) $this->session->get('vr_sess_user_id'));
+        $user = $this->users->findById((int) $this->session->get('vr_sess_user_id'));
+        $state = $this->session->get('vr_sess_account_state');
+        if ($user === null || (int) $user['status'] !== 1 || !is_string($state)
+            || !hash_equals($this->accountState($user), $state)) {
+            return null;
+        }
+        return $user;
+    }
+
+    private function accountState(array $user): string
+    {
+        return hash_hmac('sha256', serialize([(int) $user['id'], $user['password'], $user['role'], (int) $user['role_id'],
+            (int) ($user['corp_id'] ?? 0), (int) ($user['dept_id'] ?? 0), $user['token'] ?? null]), $this->sessionKey);
     }
 
     public function allows(array $user, string $permission): bool

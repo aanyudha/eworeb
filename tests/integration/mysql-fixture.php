@@ -131,7 +131,7 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
                 unset($row);
                 if ($original !== $rows) throw new RuntimeException('Proposed DDL changed historical fields.');
             }
-            $db->query("INSERT INTO categories (id,lang_id,name,parent_id,visibility) VALUES (1,1,'New',0,2)");
+            $db->query("INSERT INTO categories (id,lang_id,name,parent_id,visibility) VALUES (1,1,'New',0,2),(2,1,'Progress',0,1)");
             $db->query("INSERT INTO departments (id,lang_id,name,corp_id,parent_id,color)
                 VALUES (10,1,'Fixture department',1,0,'#ffffff'),(20,1,'Foreign department',2,0,'#ffffff')");
             $db->query("INSERT INTO locations (id,lang_id,name,corp_id,parent_id,color) VALUES
@@ -179,13 +179,13 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
                 $db->query("GRANT INSERT ON ewo_fixture.$table TO 'ewo_fixture'@'localhost'");
             }
             $db->query("GRANT UPDATE ON ewo_fixture.kb_articles TO 'ewo_fixture'@'localhost'");
-            $db->query("GRANT UPDATE (is_scheduled) ON ewo_fixture.posts TO 'ewo_fixture'@'localhost'");
+            $db->query("GRANT UPDATE (is_scheduled,status,category_id,assign_to,edited_by,edited_at) ON ewo_fixture.posts TO 'ewo_fixture'@'localhost'");
             $db->query("GRANT CREATE TEMPORARY TABLES ON ewo_fixture.* TO 'ewo_fixture'@'localhost'");
         }
         if ($replies) {
             $db->query("GRANT UPDATE (category_id,assign_to,edited_by,edited_at,status) ON ewo_fixture.posts TO 'ewo_fixture'@'localhost'");
             $db->query("GRANT INSERT ON ewo_fixture.posts_logs TO 'ewo_fixture'@'localhost'");
-            $db->query("GRANT UPDATE (password,first_name,last_name,email,status,avatar) ON ewo_fixture.users TO 'ewo_fixture'@'localhost'");
+            $db->query("GRANT UPDATE (password,first_name,last_name,email,status,avatar,corp_id,dept_id,role,role_id,email_status,token) ON ewo_fixture.users TO 'ewo_fixture'@'localhost'");
             $db->query("GRANT INSERT ON ewo_fixture.users TO 'ewo_fixture'@'localhost'");
             $db->query("GRANT UPDATE (logo,favicon) ON ewo_fixture.visual_settings TO 'ewo_fixture'@'localhost'");
             $db->query("GRANT UPDATE (timezone) ON ewo_fixture.general_settings TO 'ewo_fixture'@'localhost'");
@@ -199,6 +199,7 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
             foreach (['post_images', 'post_audios', 'audios'] as $mediaTable) {
                 $db->query("GRANT INSERT ON ewo_fixture.$mediaTable TO 'ewo_fixture'@'localhost'");
             }
+            $db->query("GRANT DELETE ON ewo_fixture.post_audios TO 'ewo_fixture'@'localhost'");
         }
         return;
     }
@@ -257,7 +258,8 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
         return;
     }
     if ($action === 'audio-count' && $replies) {
-        echo $db->query('SELECT COUNT(*) FROM audios')->fetch_row()[0];
+        echo json_encode($db->query('SELECT (SELECT COUNT(*) FROM audios) AS catalog,
+            (SELECT COUNT(*) FROM post_audios) AS links')->fetch_assoc(), JSON_THROW_ON_ERROR);
         return;
     }
     if ($action === 'reply-state' && $replies) {

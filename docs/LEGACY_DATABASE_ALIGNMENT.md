@@ -1,5 +1,11 @@
 # Audit dan penyelarasan database EWO legacy
 
+## Baseline penerimaan pengembangan
+
+Backup privat 20 November 2026 `eworeb-3310-final-uat-20261120-155142/eworeb.sql` berukuran 45.751.731 byte, SHA-256 `a1752e9085329142d15eac02ebfb6c8ffc68db373cda59c6ea51340b663da989`. Restore di MySQL loopback port 57058 dan pembandingan ulang terhadap TCP 3310 lulus untuk 19 tabel dan 444.041 record, termasuk 19.813 WO, 43.610 histori dan nol artikel KB. Pengujian mutasi berlangsung di fixture; sesi pemeriksaan pengembangan hanya membaca. Tidak ada DDL tahap ini.
+
+Skema aktif memiliki nol foreign key yang dideklarasikan dan seluruh WO saat ini bertipe `post`. Operasi historis mempertahankan referensi lama. Penghapusan parent atau akun memerlukan audit dependensi aplikasi dan kebijakan retensi. [Hasil parity](FEATURE_PARITY_MATRIX.md#hasil-audit-fungsi-ci3-di-luar-alur-utama).
+
 ## Kompatibilitas Scheduled WO pada pengembangan
 
 Pada 20 November 2026 WIB, hanya dua kolom berikut ditambahkan ke `eworeb` TCP 3310 atas persetujuan pemilik.

@@ -153,7 +153,7 @@ final class AccountController extends BaseController
         $new = $this->request->getPost('password');
         $confirm = $this->request->getPost('password_confirm');
         if (!is_string($old) || $old === '' || strlen($old) > 1024 || !is_string($new)
-            || !mb_check_encoding($new, 'UTF-8') || mb_strlen($new) < 4 || mb_strlen($new) > 50
+            || trim($new) === '' || !mb_check_encoding($new, 'UTF-8') || mb_strlen($new) < 4 || mb_strlen($new) > 50
             || strlen($new) > 72 || str_contains($new, "\0") || $new !== $confirm) {
             return $response->setStatusCode(422)->setJSON(['error' => 'Enter your current password and matching new passwords.']);
         }

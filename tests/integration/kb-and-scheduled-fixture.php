@@ -76,6 +76,8 @@ foreach ([$fields, array_replace($fields, ['title'=>'Fixture draft schedule','st
     $ids[] = (int)$db->insertID();
 }
 $worker = new ScheduledWorkOrders($db);
+$status = $worker->inspect($now);
+check((int)$status['due_this_minute'] === 2 && (int)$status['unavailable'] > 0, 'Read-only schedule readiness count is incorrect');
 $occurrences = $worker->publishMinute($now);
 check(count($occurrences) === 2 && $worker->publishMinute($now) === [], 'Due selection or duplicate prevention failed');
 foreach ($occurrences as $i => $id) {

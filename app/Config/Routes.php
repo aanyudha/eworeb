@@ -74,6 +74,16 @@ $routes->get('api/v1/reports/(incoming|outgoing)', 'WorkOrderController::report/
     ['filter' => 'ewo-admin:admin_panel,add_post,json']);
 $routes->get('api/v1/work-orders/drafts', 'WorkOrderController::index/drafts',
     ['filter' => 'ewo-admin:admin_panel,add_post,json']);
+$routes->get('api/v1/work-orders/drafts/(:num)', 'WorkOrderController::detail/drafts/$1',
+    ['filter' => 'ewo-admin:admin_panel,add_post,json']);
+$routes->get('api/v1/work-orders/drafts/(:num)/attachments', 'WorkOrderAttachmentController::index/drafts/$1',
+    ['filter' => 'ewo-admin:admin_panel,add_post,json']);
+$routes->get('api/v1/work-orders/drafts/(:num)/attachments/(main|image|audio)/(:num)', 'WorkOrderAttachmentController::download/drafts/$1/$2/$3',
+    ['filter' => 'ewo-admin:admin_panel,add_post,json']);
+$routes->get('api/v1/work-orders/drafts/(:num)/reply', 'WorkOrderReplyController::options/$1/drafts',
+    ['filter' => 'ewo-admin:admin_panel,add_post,manage_all_posts,json']);
+$routes->post('api/v1/work-orders/drafts/(:num)/reply', 'WorkOrderReplyController::save/$1/drafts',
+    ['filter' => 'ewo-admin:admin_panel,add_post,manage_all_posts,json']);
 $routes->post('api/v1/work-orders/drafts/(:num)/publish', 'WorkOrderController::publishDraft/$1',
     ['filter' => 'ewo-admin:admin_panel,add_post,json']);
 $routes->get('api/v1/work-orders/scheduled', 'WorkOrderController::index/scheduled',
@@ -96,5 +106,7 @@ $routes->get('api/v1/work-orders/(incoming|outgoing)/(:num)/attachments', 'WorkO
     ['filter' => 'ewo-admin:admin_panel,add_post,json']);
 $routes->post('api/v1/work-orders/incoming/(:num)/attachments/(image|audio)', 'WorkOrderAttachmentController::upload/$1/$2',
     ['filter' => 'ewo-admin:admin_panel,add_post,manage_all_posts,json']);
+$routes->post('api/v1/work-orders/incoming/(:num)/attachments/audio/(:num)/unlink',
+    'WorkOrderAttachmentController::unlinkAudio/$1/$2', ['filter' => 'ewo-admin:admin_panel,add_post,manage_all_posts,json']);
 $routes->get('api/v1/work-orders/(incoming|outgoing)/(:num)/attachments/(main|image|audio)/(:num)', 'WorkOrderAttachmentController::download/$1/$2/$3/$4',
     ['filter' => 'ewo-admin:admin_panel,add_post,json']);

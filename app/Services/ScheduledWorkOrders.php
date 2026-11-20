@@ -11,6 +11,8 @@ use Throwable;
 
 final class ScheduledWorkOrders
 {
+    private const VALID_SCHEDULE = "intervale > 0 AND published_at >= '1000-01-01 00:00:00'
+        AND DATE_ADD(published_at, INTERVAL intervale DAY) IS NOT NULL";
     private const COPY_FIELDS = [
         'lang_id', 'title', 'summary', 'category_id', 'location_id', 'sublocation_id', 'image_big',
         'image_default', 'image_slider', 'image_mid', 'image_small', 'image_mime', 'visibility',
@@ -36,17 +38,33 @@ final class ScheduledWorkOrders
         return (int) $row['matched'] === 4;
     }
 
-    public function publishMinute(DateTimeImmutable $now): array
+    public function inspect(DateTimeImmutable $now): array
+    {
+        $valid = self::VALID_SCHEDULE;
+        [$from, $until] = $this->minuteBounds($now);
+        return $this->db->query("SELECT COUNT(*) AS templates,
+            COUNT(CASE WHEN $valid THEN 1 END) AS valid,
+            COUNT(*) - COUNT(CASE WHEN $valid THEN 1 END) AS unavailable,
+            COUNT(CASE WHEN $valid AND published_at < ? THEN 1 END) AS past_due,
+            COUNT(CASE WHEN $valid AND published_at >= ? AND published_at < ? THEN 1 END) AS due_this_minute
+            FROM posts WHERE is_scheduled = 1", [$from, $from, $until])->getRowArray();
+    }
+
+    private function minuteBounds(DateTimeImmutable $now): array
     {
         $floor = $now->setTime((int)$now->format('H'), (int)$now->format('i'));
-        $from = $floor->format('Y-m-d H:i:s');
-        $until = $floor->modify('+1 minute')->format('Y-m-d H:i:s');
+        return [$floor->format('Y-m-d H:i:s'), $floor->modify('+1 minute')->format('Y-m-d H:i:s')];
+    }
+
+    public function publishMinute(DateTimeImmutable $now): array
+    {
+        [$from, $until] = $this->minuteBounds($now);
         $this->db->transException(true);
         if (!$this->db->transBegin()) {
             throw new RuntimeException('Could not begin scheduled Work Order processing.');
         }
         try {
-            $templates = $this->db->query('SELECT * FROM posts WHERE is_scheduled = 1 AND intervale > 0
+            $templates = $this->db->query('SELECT * FROM posts WHERE is_scheduled = 1 AND ' . self::VALID_SCHEDULE . '
                 AND published_at >= ? AND published_at < ? ORDER BY id FOR UPDATE', [$from, $until])->getResultArray();
             $created = [];
             foreach ($templates as $template) {

@@ -17,15 +17,32 @@ final class WorkOrderAttachmentController extends BaseController
     {
         return $this->run($direction, $order, function (array $post, WorkOrderAttachments $media, array $viewer) use ($direction, $order): ResponseInterface {
             $items = [];
+            $canUnlink = $media->canModify($viewer, $direction, $post);
             foreach ($media->entries($post) as $entry) {
                 $download = $media->resolve($entry) === null ? null : site_url(
                     'api/v1/work-orders/' . $direction . '/' . $order . '/attachments/' . $entry['kind'] . '/' . $entry['id']
                 );
-                $items[] = ['kind' => $entry['kind'], 'id' => $entry['id'], 'label' => $entry['label'], 'download' => $download];
+                $unlink = $canUnlink && $entry['kind'] === 'audio'
+                    ? site_url('api/v1/work-orders/incoming/' . $order . '/attachments/audio/' . $entry['id'] . '/unlink')
+                    : null;
+                $items[] = ['kind' => $entry['kind'], 'id' => $entry['id'], 'label' => $entry['label'], 'download' => $download, 'unlink' => $unlink];
             }
             $kind = $media->uploadKind($viewer, $direction, $post);
             $upload = $kind === null ? [] : ['upload' => ['kind' => $kind, 'header' => csrf_header(), 'hash' => csrf_hash()]];
-            return $this->response->setJSON(['items' => $items] + $upload);
+            $csrf = $canUnlink ? ['csrf' => ['header' => csrf_header(), 'hash' => csrf_hash()]] : [];
+            return $this->response->setJSON(['items' => $items] + $upload + $csrf);
+        });
+    }
+
+    public function unlinkAudio(string $order, string $relation): ResponseInterface
+    {
+        return $this->run('incoming', $order, function (array $post, WorkOrderAttachments $media, array $viewer) use ($relation): ResponseInterface {
+            $id = filter_var($relation, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($id === false) {
+                throw new DomainException('Check the audio attachment ID.', 422);
+            }
+            $media->unlinkAudio($viewer, (int) $post['id'], $id);
+            return $this->response->setJSON(['unlinked' => true]);
         });
     }
 

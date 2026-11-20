@@ -41,7 +41,9 @@ Status dan batas setiap modul tersedia di [matriks parity](docs/FEATURE_PARITY_M
 
 Scheduled WO tersedia di sidebar utama dan di `/workspace/work-orders/scheduled`. Buat jadwal lewat formulir Create Work Order dengan memilih Schedule Work Order, mengisi tanggal publikasi dan interval hari. Daftar menggunakan kriteria Published CI3. Jadwal historis yang tidak diketahui tampil sebagai **Schedule unavailable**. Pembuatan jadwal aktif pada pengembangan dan worker tetap nonaktif. [Checklist untuk aktivasi worker](docs/OPERATIONAL_READINESS.md#scheduled-wo-dan-aktivasi-worker).
 
-Reports In/Out dapat dibuka oleh pemegang `add_post`. Pada skema legacy yang tidak memiliki subkategori, tabel dan ekspor halaman aktif menampilkan “Subcategory unavailable”. Create biasa aktif di `.env` lokal pengembangan `eworeb` TCP 3310. Ketiga sakelar tulis lain tetap `false`. Riwayat backup, restore dan verifikasi tersedia di [audit skema](docs/LEGACY_DATABASE_ALIGNMENT.md#keputusan-pemilik-untuk-create-work-order-biasa).
+Jalankan `php spark ewo:publish-scheduled --check` untuk membandingkan waktu database dengan timezone aplikasi dan menghitung template yang valid tanpa menjalankan pengulangan. Media privat dan sakelar UAT pengembangan tercatat di [Kesiapan operasi](docs/OPERATIONAL_READINESS.md#persiapan-uat-pengembangan).
+
+Reports In/Out dapat dibuka oleh pemegang `add_post`. PDF dan XLSX mencakup seluruh hasil filter. Pada skema legacy tanpa subkategori, tabel dan ekspor menampilkan “Subcategory unavailable”. Create biasa dan terjadwal aktif di pengembangan `eworeb` TCP 3310. Riwayat backup, restore dan verifikasi tersedia di [audit skema](docs/LEGACY_DATABASE_ALIGNMENT.md#baseline-penerimaan-pengembangan).
 
 Mount arsip CI3 lokal bersifat baca-saja. Avatar sendiri, logo dan favicon dari unggahan baru membutuhkan `ewo.accountMediaRoot` privat dan sakelar akun yang disetujui. Avatar memakai GD untuk crop JPEG 240 × 240. Email profil membutuhkan kata sandi saat ini dan hanya dapat berubah ketika email verification legacy nonaktif. [Kesiapan operasi dan checklist persetujuan](docs/OPERATIONAL_READINESS.md)
 

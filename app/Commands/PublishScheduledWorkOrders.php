@@ -19,10 +19,13 @@ final class PublishScheduledWorkOrders extends BaseCommand
     protected $group = 'EWO';
     protected $name = 'ewo:publish-scheduled';
     protected $description = 'Process the current database minute of Scheduled Work Orders when explicitly enabled.';
+    protected $options = ['--check' => 'Inspect clock and template readiness without producing Work Orders.'];
 
     public function run(array $params): int
     {
-        if (env('ewo.scheduledWorkOrderWorker', false) !== true) {
+        $check = array_key_exists('check', $params);
+        $enabled = env('ewo.scheduledWorkOrderWorker', false) === true;
+        if (!$check && !$enabled) {
             CLI::write('Scheduled Work Order worker is disabled.');
             return EXIT_SUCCESS;
         }
@@ -40,6 +43,14 @@ final class PublishScheduledWorkOrders extends BaseCommand
             $local = new DateTimeImmutable((new DateTimeImmutable('now', $localZone))->format('Y-m-d H:i:s'), $wallZone);
             if (abs($local->getTimestamp() - $now->getTimestamp()) > 5) {
                 throw new RuntimeException('Database time and the legacy application timezone disagree.');
+            }
+            if ($check) {
+                CLI::write('Legacy timezone: ' . $localZone->getName() . '; database time: ' . $databaseTime);
+                CLI::write('Worker gate: ' . ($enabled ? 'enabled' : 'disabled'));
+                foreach ($worker->inspect($now) as $label => $count) {
+                    CLI::write($label . ': ' . $count);
+                }
+                return EXIT_SUCCESS;
             }
             CLI::write('Scheduled occurrences committed: ' . count($worker->publishMinute($now)));
             return EXIT_SUCCESS;

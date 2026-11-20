@@ -11,7 +11,7 @@ use Throwable;
 
 final class UserManagement
 {
-    public const FIELDS = ['first_name', 'last_name', 'email', 'corp_id', 'dept_id', 'role_id', 'password', 'status'];
+    public const FIELDS = ['first_name', 'last_name', 'email', 'corp_id', 'dept_id', 'role_id', 'password', 'status', 'confirm_email'];
 
     public function __construct(private readonly BaseConnection $db)
     {
@@ -31,7 +31,20 @@ final class UserManagement
     public function options(string $resource, ?int $id, int $viewerId): array
     {
         if ($id !== null) {
-            return ['fields' => $this->record($resource, $id, $viewerId, false)];
+            $fields = $this->record($resource, $id, $viewerId, false);
+            $confirmed = (int) $fields['email_status'] === 1;
+            unset($fields['email_status']);
+            $fields['password'] = '';
+            if (!$confirmed) {
+                $fields['confirm_email'] = 0;
+            }
+            $role = $this->roles()->where('id', $fields['role_id'])->countAllResults() > 0;
+            if (!$role) {
+                unset($fields['role_id']);
+            }
+            return ['fields' => $fields, 'checks' => ['confirm_email'], 'choices' => $this->scopeChoices($fields) + [
+                'role_id' => $this->roles()->select('id AS value, role_name AS label')->orderBy('role_name')->get()->getResultArray(),
+            ]];
         }
         $fields = ['first_name' => '', 'last_name' => '', 'email' => '', 'password' => '', 'corp_id' => '', 'dept_id' => ''];
         $choices = [];
@@ -40,7 +53,7 @@ final class UserManagement
             $choices['role_id'] = $this->db->table('roles_permissions')->select('id AS value, role_name AS label')
                 ->where(['id >' => 1, 'role !=' => 'admin'])->orderBy('role_name')->get()->getResultArray();
         }
-        return ['fields' => $fields, 'choices' => $choices];
+        return ['fields' => $fields, 'choices' => $choices + $this->scopeChoices($fields)];
     }
 
     public function save(string $resource, ?int $id, int $viewerId, array $input): int
@@ -58,9 +71,13 @@ final class UserManagement
                 throw new DomainException('Select an account status.', 422);
             }
             $data['status'] = (int)$status;
+            $password = $input['password'] ?? '';
+            if ($password !== '') {
+                $data['password'] = $this->passwordHash($password, 4);
+            }
         }
 
-        return $this->withAccountLock(fn (): int => $this->persist($resource, $id, $viewerId, $data));
+        return $this->withAccountLock(fn (): int => $this->persist($resource, $id, $viewerId, $data, $input));
     }
 
     public function changeOwnEmail(array $viewer, mixed $input): void
@@ -111,7 +128,7 @@ final class UserManagement
         }
     }
 
-    private function persist(string $resource, ?int $id, int $viewerId, array $data): int
+    private function persist(string $resource, ?int $id, int $viewerId, array $data, array $input): int
     {
         $this->db->transException(true);
         if (!$this->db->transBegin()) {
@@ -119,7 +136,36 @@ final class UserManagement
         }
         try {
             if ($id !== null) {
-                $this->record($resource, $id, $viewerId, true);
+                $old = $this->record($resource, $id, $viewerId, true);
+                if (isset($input['corp_id']) || isset($input['dept_id'])) {
+                    $corpInput = $input['corp_id'] ?? null;
+                    $deptInput = $input['dept_id'] ?? null;
+                    if ($corpInput !== (string) $old['corp_id'] || $deptInput !== (string) $old['dept_id']) {
+                        $corp = $this->id($corpInput);
+                        $dept = $this->id($deptInput);
+                        $this->validateScope($corp, $dept);
+                        $data += ['corp_id' => $corp, 'dept_id' => $dept];
+                    }
+                }
+                if (isset($input['role_id']) && $this->id($input['role_id']) !== (int) $old['role_id']) {
+                    $role = $this->roles()->select('id, role')->where('id', $this->id($input['role_id']))->get()->getRowArray();
+                    if ($role === null || ((int) $role['id'] === 1) !== ($role['role'] === 'admin')) {
+                        throw new DomainException('Select an available account role.', 422);
+                    }
+                    $data += ['role_id' => (int) $role['id'], 'role' => $role['role']];
+                }
+                $confirm = $input['confirm_email'] ?? '0';
+                if (!in_array($confirm, ['0', '1'], true)) {
+                    throw new DomainException('Check the email confirmation choice.', 422);
+                }
+                $emailChanged = $old['email'] !== $data['email'];
+                if ($emailChanged || ($confirm === '1' && (int) $old['email_status'] !== 1)) {
+                    $data['email_status'] = $confirm === '1' ? 1 : 0;
+                }
+                if (isset($data['email_status']) || isset($data['role_id']) || isset($data['corp_id'])
+                    || ((int) $old['status'] === 1 && $data['status'] === 0)) {
+                    $data['token'] = bin2hex(random_bytes(24));
+                }
             }
             $duplicate = $this->db->table('users')->where('email', $data['email']);
             if ($id !== null) {
@@ -146,7 +192,7 @@ final class UserManagement
         if (!self::canEdit($viewerId, $id)) {
             throw new DomainException('This account is protected.', 403);
         }
-        $query = $this->db->table('users')->select('first_name,last_name,email,status')->where('id', $id)
+        $query = $this->db->table('users')->select('first_name,last_name,email,status,role_id,corp_id,dept_id,email_status')->where('id', $id)
             ->where($resource === 'administrators' ? 'role' : 'role !=', 'admin');
         $row = $lock ? $this->db->query($query->getCompiledSelect() . ' FOR UPDATE')->getRowArray()
             : $query->get()->getRowArray();
@@ -161,22 +207,55 @@ final class UserManagement
         $corp = $this->id($input['corp_id'] ?? null);
         $dept = $this->id($input['dept_id'] ?? null);
         $role = $resource === 'administrators' ? 1 : $this->id($input['role_id'] ?? null);
-        $password = $input['password'] ?? null;
-        if (!is_string($password) || !mb_check_encoding($password, 'UTF-8') || mb_strlen($password) < 2
-            || mb_strlen($password) > 50 || strlen($password) > 72 || str_contains($password, "\0")) {
-            throw new DomainException('Enter a valid initial password.', 422);
-        }
+        $password = $this->passwordHash($input['password'] ?? null, 2);
 
         $roleRow = $this->db->table('roles_permissions')->select('role')->where('id', $role)->get()->getRowArray();
-        $department = $this->db->table('departments d')->select('d.id')->join('corps c', 'c.id = d.corp_id')
-            ->where(['d.id' => $dept, 'd.corp_id' => $corp])->get()->getRowArray();
-        if ($roleRow === null || ($resource === 'administrators') !== ($roleRow['role'] === 'admin')
-            || $department === null) {
+        $this->validateScope($corp, $dept);
+        if ($roleRow === null || ($resource === 'administrators') !== ($roleRow['role'] === 'admin')) {
             throw new DomainException('Select a valid role and a department in the selected corporation.', 422);
         }
-        return ['password' => password_hash($password, PASSWORD_BCRYPT), 'role' => $roleRow['role'], 'role_id' => $role,
+        return ['password' => $password, 'role' => $roleRow['role'], 'role_id' => $role,
             'corp_id' => $corp, 'dept_id' => $dept, 'status' => 1, 'email_status' => 1, 'user_type' => 'registered',
             'token' => bin2hex(random_bytes(24))];
+    }
+
+    private function scopeChoices(array $fields): array
+    {
+        $corporations = $this->db->table('corps')->select('id AS value, name AS label')->orderBy('corp_order')->get()->getResultArray();
+        $departments = $this->db->table('departments')->select('id AS value, name AS label, corp_id')
+            ->orderBy('department_order')->get()->getResultArray();
+        if ($fields['corp_id'] !== '' && !in_array((int) $fields['corp_id'], array_map('intval', array_column($corporations, 'value')), true)) {
+            $corporations[] = ['value' => $fields['corp_id'], 'label' => 'Current legacy corporation (' . $fields['corp_id'] . ')'];
+        }
+        $projectDepartments = array_filter($departments, fn (array $department): bool => (int) $department['corp_id'] === (int) $fields['corp_id']);
+        if ($fields['dept_id'] !== '' && !in_array((int) $fields['dept_id'], array_map('intval', array_column($projectDepartments, 'value')), true)) {
+            $departments[] = ['value' => $fields['dept_id'], 'label' => 'Current legacy department (' . $fields['dept_id'] . ')',
+                'corp_id' => $fields['corp_id']];
+        }
+        return ['corp_id' => $corporations, 'dept_id' => $departments];
+    }
+
+    private function validateScope(int $corp, int $dept): void
+    {
+        $query = $this->db->table('departments d')->join('corps c', 'c.id = d.corp_id')
+            ->where(['d.id' => $dept, 'd.corp_id' => $corp]);
+        if ($query->countAllResults() !== 1) {
+            throw new DomainException('Select a valid department in the selected corporation.', 422);
+        }
+    }
+
+    private function roles(): \CodeIgniter\Database\BaseBuilder
+    {
+        return $this->db->table('roles_permissions');
+    }
+
+    private function passwordHash(mixed $password, int $minimum): string
+    {
+        if (!is_string($password) || trim($password) === '' || !mb_check_encoding($password, 'UTF-8') || mb_strlen($password) < $minimum
+            || mb_strlen($password) > 50 || strlen($password) > 72 || str_contains($password, "\0")) {
+            throw new DomainException('Enter a valid account password.', 422);
+        }
+        return password_hash($password, PASSWORD_BCRYPT);
     }
 
     private function id(mixed $value): int

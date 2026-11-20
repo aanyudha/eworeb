@@ -236,7 +236,9 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
             const JSZip=require('../../frontend/node_modules/jszip');
             const spreadsheet=await JSZip.loadAsync(xlsx);
             const sheet=await spreadsheet.file('xl/worksheets/sheet1.xml').async('string');
-            assert.equal([...sheet.matchAll(/<row\b/g)].length,16);
+            const total=await evaluate(String.raw`Number(document.querySelector('nav[aria-label="Work order pages"]').innerText.match(/([0-9]+) work orders/)[1])`);
+            assert.ok(total > 100);
+            assert.equal([...sheet.matchAll(/<row\b/g)].length,total + 1);
             assert.match(sheet,/<t xml:space="preserve">Work Order Title<\/t>/);
             assert.match(sheet,/<t xml:space="preserve">Fixture WO<\/t>/);
             assert.doesNotMatch(sheet,/<f>/);
@@ -310,7 +312,9 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
                     const sheet=await spreadsheet.file('xl/worksheets/sheet1.xml').async('string');
                     assert.match(sheet,/Subcategory unavailable/);
                     assert.match(sheet,/Fixture WO/);
-                    assert.equal([...sheet.matchAll(/<row\b/g)].length,16);
+                    const total=await evaluate(String.raw`Number(document.querySelector('nav[aria-label="Work order pages"]').innerText.match(/([0-9]+) work orders/)[1])`);
+                    assert.ok(total > 15);
+                    assert.equal([...sheet.matchAll(/<row\b/g)].length,total + 1);
                 } else {
                     assert.equal(data.subarray(0,5).toString(),'%PDF-');
                     assert.match(data.toString('latin1'),/\/MediaBox \[0 0 1190\.\d+ 841\.\d+\]/);

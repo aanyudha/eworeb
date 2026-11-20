@@ -137,6 +137,26 @@ module.exports = async function testCreate(request, login, location, audit, uplo
   assert.deepEqual([templateDraft.order.status,templateDraft.order.is_scheduled,templateDraft.order.dept_id],[0,1,20]);
   assert.equal(templateDraft.history[0].intervale,2);
   assert.equal((await request(scheduled+'/'+result.id)).status,404);
+  const draftPath = '/api/v1/work-orders/drafts/' + result.id;
+  assert.equal((await request(draftPath)).status,200);
+  const replyPath = draftPath + '/reply';
+  const choices = await (await request(replyPath)).json();
+  assert.ok(choices.assignees.length);
+  const reply = await request(replyPath, {revision:choices.revision, category_id:String(choices.categories[0].id),
+    assign_to:String(choices.assignees[0].id),summary_edit:'Scheduled draft reply'}, {headers:{[choices.csrf.header]:choices.csrf.hash}});
+  assert.equal(reply.status,200,await reply.clone().text());
+  const editedDraft = JSON.parse(audit('create-state',String(result.id)));
+  assert.equal(editedDraft.order.status,0);
+  assert.equal(editedDraft.order.published_at,templateDraft.order.published_at);
+  assert.equal(editedDraft.history.length,2);
+  assert.equal((await request(draftPath+'/publish',{}, {headers:{'X-Requested-With':'XMLHttpRequest'}})).status,403);
+  const publishedDraft = await request(draftPath+'/publish',{}, {headers:{'X-CSRF-TOKEN':(await current()).submission.csrf.hash}});
+  assert.equal(publishedDraft.status,200,await publishedDraft.clone().text());
+  assert.equal((await request(draftPath)).status,404);
+  assert.equal((await request(scheduled+'/'+result.id)).status,200);
+  assert.deepEqual(JSON.parse(audit('create-state',String(result.id))), {
+    ...editedDraft, order: {...editedDraft.order,status:1},
+  });
 
   const adminFields = {...fields,status:'1',title:'Fixture Scheduled Published'};
   audit('refuse-create-history');
@@ -150,7 +170,7 @@ module.exports = async function testCreate(request, login, location, audit, uplo
   const publishedSchedule = JSON.parse(audit('create-state',String(template)));
   const history = publishedSchedule.history[0];
   assert.deepEqual([history.status,history.is_scheduled,history.dept_id,history.intervale,history.published_at],[1,1,20,2,'2030-11-20 10:30:00']);
-  const listing = await (await request(scheduled+'?q=Fixture+Scheduled')).json();
+  const listing = await (await request(scheduled+'?q=Fixture+Scheduled+Published')).json();
   assert.deepEqual(listing.items.map(row=>row.id),[template]);
   assert.equal(listing.items[0].department,'Foreign department');
   assert.equal((await (await request(scheduled+'/'+template)).json()).history.items[0].published_at,'2030-11-20 10:30:00');
