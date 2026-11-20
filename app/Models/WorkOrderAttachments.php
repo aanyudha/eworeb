@@ -110,7 +110,7 @@ final class WorkOrderAttachments
         }
     }
 
-    private function validateUpload(string $kind, ?UploadedFile $file): string
+    public function validateUpload(string $kind, ?UploadedFile $file): string
     {
         $limit = $kind === 'audio' ? 20 * 1024 * 1024 : 5 * 1024 * 1024;
         if ($file === null || !$file->isValid() || $file->getSize() < 1 || $file->getSize() > $limit) {
@@ -158,7 +158,7 @@ final class WorkOrderAttachments
             'user_id' => (int)$viewer['id']];
     }
 
-    private function uploadDirectory(string $kind): ?string
+    public function uploadDirectory(string $kind): ?string
     {
         $root = $this->privateRoot('ewo.workOrderUploadRoot');
         $archive = $this->privateRoot('ewo.workOrderMediaRoot');

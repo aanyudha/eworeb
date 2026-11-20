@@ -59,7 +59,7 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
     $create = ($settings['create'] ?? false) === true;
     $legacy = $replies || $create;
     $refuse = ($replies && in_array($action, ['refuse-reply-history', 'refuse-audio-link', 'refuse-settings-timezone', 'require-email-verification', 'refuse-avatar'], true))
-        || ($create && in_array($action, ['refuse-create-history', 'restore-create-history', 'refuse-create-image', 'incompatible-create-column'], true));
+        || ($create && in_array($action, ['refuse-create-history', 'restore-create-history', 'refuse-create-image', 'refuse-catalog-image', 'incompatible-create-column', 'scheduled-prepare'], true));
     $password = $initializer ? $settings['rootPassword'] : ($refuse ? getenv('EWO_REPLY_FIXTURE_ADMIN') : $settings['password']);
     $db = new mysqli('127.0.0.1', $initializer || $refuse ? 'root' : 'ewo_fixture', $password, '', $port);
     if (realpath($db->query('SELECT @@datadir')->fetch_row()[0]) !== $dataDirectory) {
@@ -113,6 +113,7 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
                 FROM users u JOIN roles_permissions r ON r.role='author3' WHERE u.id=1");
         }
         if ($create) {
+            $db->query(file_get_contents(dirname(__DIR__,2) . '/docs/KB_MYSQL_PROPOSAL.sql'));
             $db->query('INSERT INTO posts_logs (post_id,is_scheduled) VALUES (1,1)');
             foreach (['posts', 'posts_logs'] as $table) {
                 $original = $db->query("SELECT * FROM $table ORDER BY id")->fetch_all(MYSQLI_ASSOC);
@@ -169,9 +170,11 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
         $db->query("GRANT UPDATE (last_seen, ip_address) ON ewo_fixture.users TO 'ewo_fixture'@'localhost'");
         $db->query("GRANT INSERT ON ewo_fixture.users_logs TO 'ewo_fixture'@'localhost'");
         if ($create) {
-            foreach (['posts', 'posts_logs', 'post_images'] as $table) {
+            foreach (['posts', 'posts_logs', 'post_images', 'images', 'kb_articles'] as $table) {
                 $db->query("GRANT INSERT ON ewo_fixture.$table TO 'ewo_fixture'@'localhost'");
             }
+            $db->query("GRANT UPDATE ON ewo_fixture.kb_articles TO 'ewo_fixture'@'localhost'");
+            $db->query("GRANT CREATE TEMPORARY TABLES ON ewo_fixture.* TO 'ewo_fixture'@'localhost'");
         }
         if ($replies) {
             $db->query("GRANT UPDATE (category_id,assign_to,edited_by,edited_at,status) ON ewo_fixture.posts TO 'ewo_fixture'@'localhost'");
@@ -195,11 +198,23 @@ function runFixture(string $sqlitePath, string $action, ?string $orderId): void
     }
 
     $db->select_db('ewo_fixture');
+    if ($create && $action === 'scheduled-prepare') {
+        $db->query('ALTER TABLE posts_logs MODIFY published_at DATETIME NULL DEFAULT NULL');
+        foreach (['posts', 'posts_logs'] as $table) {
+            $db->query("ALTER TABLE $table ADD COLUMN intervale INT UNSIGNED NULL DEFAULT NULL");
+        }
+        $db->query("GRANT UPDATE (published_at) ON ewo_fixture.posts TO 'ewo_fixture'@'localhost'");
+        $db->query("CREATE TRIGGER fixture_refuse_occurrence BEFORE INSERT ON posts_logs FOR EACH ROW BEGIN
+            IF NEW.title='Rollback schedule' AND NEW.is_scheduled=0 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Fixture rejection'; END IF;
+        END");
+        return;
+    }
     if ($create && $refuse) {
         $db->query(match ($action) {
             'refuse-create-history' => "REVOKE INSERT ON ewo_fixture.posts_logs FROM 'ewo_fixture'@'localhost'",
             'restore-create-history' => "GRANT INSERT ON ewo_fixture.posts_logs TO 'ewo_fixture'@'localhost'",
             'refuse-create-image' => "REVOKE INSERT ON ewo_fixture.post_images FROM 'ewo_fixture'@'localhost'",
+            'refuse-catalog-image' => "REVOKE INSERT ON ewo_fixture.images FROM 'ewo_fixture'@'localhost'",
             'incompatible-create-column' => 'ALTER TABLE posts_logs MODIFY published_at DATETIME(6) NULL DEFAULT NULL',
         });
         return;

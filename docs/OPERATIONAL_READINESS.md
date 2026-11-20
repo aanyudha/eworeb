@@ -1,5 +1,17 @@
 # Kesiapan operasi EWO Reborn
 
+## UAT terbatas per sakelar
+
+Gunakan corpus sintetis dan instance MySQL terisolasi untuk setiap langkah tulis berikut. Untuk eksekusi pengembangan, pemilik menetapkan akun, corporation, record, jadwal, dan cakupan transaksi secara terpisah. Perubahan konfigurasi modul KB memakai backend tersendiri.
+
+| Kemampuan | UAT terkontrol |
+| --- | --- |
+| `ewo.workOrderCreateWrites` | Satu akun terdaftar berizin dan satu akun tanpa izin. Pilih gambar utama/tambahan dari corporation yang benar, simpan Draft, lalu buat Publish tersendiri. Periksa histori, daftar, galat lintas corporation, dan file privat. Upload memerlukan root privat yang dikonfigurasi dengan GD dan fileinfo. |
+| `ewo.workOrderWrites` | Uji atas WO fixture yang ditetapkan. Verifikasi status awal, assignment, perubahan histori yang diizinkan, reopen, publish Draft existing, rollback, dan lampiran. |
+| `ewo.masterDataWrites` | Verifikasi satu kasus tiap editor pada data fixture, parent valid, penolakan lintas corporation, dan perlindungan kategori status WO. |
+| `ewo.accountWrites` | Gunakan pengguna fixture. Uji akun sendiri, administrator, role, kata sandi, settings, avatar, dan branding menurut batas yang telah tercatat. |
+| Scheduled | Fixture saja. Terima kebijakan atas jadwal historis kosong, menit terlewat, zona waktu dan cara pemanggilan cron terlebih dahulu. |
+
 ## Siap untuk penerimaan pengguna
 
 - Login Apache dengan akun legacy sudah diverifikasi pada tahap sebelumnya. Workspace React adalah dashboard operasional. Alias /admin mengarah ke Workspace melalui filter sesi dan admin_panel.

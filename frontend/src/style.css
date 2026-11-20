@@ -117,6 +117,10 @@ h1, h2, h3, p { margin: 0; }
 }
 .create-wo-form fieldset { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; min-width: 0; margin: 0; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); }
 .create-wo-form fieldset :disabled { cursor: not-allowed; }
+.create-image-catalog { width: 100%; display: grid; gap: 6px; max-height: 22rem; overflow: auto; }
+.create-image-choice { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 5px; }
+.create-image-choice img { object-fit: contain; }
+.create-image-choice button[aria-pressed=true] { background: #e2edff; border-color: var(--blue); }
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 15px; min-height: 53px; }
 .panel-head span, .pagination, .chart, .empty { font-size: 13px; color: var(--muted); }
 .table-wrap { overflow-x: auto; }

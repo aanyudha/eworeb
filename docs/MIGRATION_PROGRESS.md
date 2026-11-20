@@ -1,5 +1,12 @@
 # Progres migrasi EWO
 
+## Media Create, jadwal terisolasi dan Knowledge Base MySQL, 20 November 2026 WIB
+
+- Form Create existing menyediakan pemilih gambar utama/tambahan dan unggahan katalog ketika penyimpanan privat tersedia. Referensi legacy ikut pada WO, histori awal dan post_images. Chrome menguji unggahan, pemilihan, Draft, Publish, Outgoing dan detail/histori. Fixture menguji penolakan lintas corporation, MIME, CSRF dan rollback metadata/file. Pengembangan belum memiliki root unggahan privat. Kontrol subscriber CI3 ada di blok komentar dan dependensi newsletter tidak tersedia.
+- Worker Scheduled menyalin status dan assignment, memakai menit jatuh tempo CI3, menyimpan waktu eksekusi pada occurrence dan waktu template pada histori, lalu memajukan tanggal sejumlah hari. Fixture menguji dua worker serentak, recurrence, draft/publish, nilai historis kosong dan rollback. `intervale` dan konfigurasi cron tetap menunggu penerimaan pemilik. [Audit sumber dan DDL fixture](LEGACY_DATABASE_ALIGNMENT.md#scheduled-media-create-dan-subkategori).
+- Adapter KB memakai satu tabel terpisah dan lulus regresi impor, parity konten, visibilitas, CSRF, admin, revisi, publikasi dan URL publik. Backup penuh 18 tabel lulus restore. Auto-review menahan DDL, impor dan perubahan backend pengembangan sampai ada persetujuan eksplisit atas operasi itu. Lokasi sumber JSON yang dikonfigurasi kosong. [Cutover dan pemulihan](KNOWLEDGE_BASE_MYSQL.md).
+- Reports tetap menggunakan scope, filter, total, PDF dan XLSX existing. Audit dump tidak menemukan nilai faktual subkategori per WO. Prosedur UAT per sakelar ada di [Kesiapan operasi](OPERATIONAL_READINESS.md#uat-terbatas-per-sakelar).
+
 ## Aktivasi Create biasa dan sidebar Workspace, 20 November 2026 WIB
 
 - Backup lengkap `eworeb` dipulihkan di MySQL loopback terpisah. Dua ALTER yang disetujui kemudian lulus pada TCP 3310 dengan lock yang memblokir penulis. Semua fingerprint kolom lama cocok. Jumlah 19.812 WO, 43.609 histori dan 444.035 record lintas 18 tabel sama sebelum dan sesudah. Seluruh waktu publikasi historis tetap `NULL`. [Bukti backup, restore dan DDL](LEGACY_DATABASE_ALIGNMENT.md#keputusan-pemilik-untuk-create-work-order-biasa).

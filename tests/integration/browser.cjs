@@ -77,8 +77,16 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
                     await until(()=>evaluate(`Boolean(document.querySelector('[name=${name}] option[value="${value}"]'))`));
                     await evaluate(`{const field = document.querySelector('[name=${name}]'); field.value = '${value}'; field.dispatchEvent(new Event('change', {bubbles:true}));}`);
                 }
+                if (status === 1) {
+                    await until(()=>evaluate("Boolean(document.querySelector('.create-wo-form input[type=file]'))"));
+                    const {root} = await send('DOM.getDocument');
+                    const {nodeId} = await send('DOM.querySelector',{nodeId:root.nodeId,selector:'.create-wo-form input[type=file]'});
+                    await send('DOM.setFileInputFiles',{nodeId,files:[path.join(runtime,'fixture-valid.png')]});
+                    await until(()=>evaluate("document.querySelector('.create-image-choice img')?.naturalWidth > 0"));
+                    await evaluate("const choices=document.querySelectorAll('.create-image-choice'); choices[0].querySelectorAll('button')[0].click(); choices[1].querySelectorAll('button')[1].click()");
+                }
                 await evaluate(`{const form = document.querySelector('.create-wo-form'); form.elements.role_id.selectedIndex=1; form.elements.title.value=${JSON.stringify(title)}; form.elements.summary.value=${JSON.stringify(summary)}; form.querySelector('button[value="${status}"]').click();}`);
-                return until(()=>evaluate(String.raw`document.querySelector('.create-wo-form [role=status]')?.innerText.match(/Work Order #(\d+) ${status === 1 ? 'published' : 'saved as a draft'}/)?.[1]`));
+                return until(()=>evaluate(String.raw`[...document.querySelectorAll('.create-wo-form [role=status]')].map(node=>node.innerText.match(/Work Order #(\d+) ${status === 1 ? 'published' : 'saved as a draft'}/)?.[1]).find(Boolean)`));
             }
             assert.ok(await createInBrowser(0, 'Browser draft WO', ''));
             await send('Page.navigate',{url:origin+'/workspace/work-orders/drafts?q=Browser+draft+WO'});
@@ -87,7 +95,7 @@ module.exports = async function browserSmoke(binary, runtime, origin) {
             await send('Page.navigate',{url:origin+'/workspace/work-orders/outgoing?q=Browser+created+WO'});
             await until(()=>evaluate("document.querySelector('tbody')?.innerText.includes('Browser created WO')"));
             await evaluate(`document.querySelector('tbody a[href$="/outgoing/${confirmation}"]').click()`);
-            await until(()=>evaluate(`document.querySelector('h1')?.innerText==='Work Order #${confirmation}' && document.querySelector('tbody')?.innerText.includes('Browser initial history')`));
+            await until(()=>evaluate(`document.querySelector('h1')?.innerText==='Work Order #${confirmation}' && document.querySelector('tbody')?.innerText.includes('Browser initial history') && document.body.innerText.includes('Primary image') && document.body.innerText.includes('Additional image')`));
             console.log('Chrome: Create Draft with blank description, Publish, Outgoing and initial history PASS');
         } else {
             assert.ok(await evaluate("document.querySelector('[aria-disabled=true][role=link][aria-label^=Create]')?.textContent.includes('publication date')"));

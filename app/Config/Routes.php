@@ -45,6 +45,9 @@ $routes->get('api/v1/work-orders/create/preview', 'WorkOrderCreateController::pr
     ['filter' => 'ewo-admin:admin_panel,add_post,json']);
 $routes->post('api/v1/work-orders/create', 'WorkOrderCreateController::save',
     ['filter' => 'ewo-admin:admin_panel,add_post,json']);
+$routes->get('api/v1/work-orders/create/images', 'WorkOrderCreateController::images', ['filter' => 'ewo-admin:admin_panel,add_post,json']);
+$routes->post('api/v1/work-orders/create/images', 'WorkOrderCreateController::uploadImage', ['filter' => 'ewo-admin:admin_panel,add_post,json']);
+$routes->get('api/v1/work-orders/create/images/(:num)', 'WorkOrderCreateController::image/$1', ['filter' => 'ewo-admin:admin_panel,add_post,json']);
 
 
 $routes->get('api/v1/admin-directory/(categories|subcategories|locations|sublocations|departments|corporations|users|administrators|roles)',

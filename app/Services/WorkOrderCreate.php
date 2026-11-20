@@ -88,6 +88,7 @@ final class WorkOrderCreate
             throw new RuntimeException('Could not begin Work Order creation.');
         }
         try {
+            $images = new WorkOrderImages($this->db);
             $this->requireChoice('corps', ['id' => $corp], 'corporation');
             $this->requireChoice('departments', ['id' => $dept, 'corp_id' => $corp], 'department');
             $this->requireChoice('locations', ['id' => $location, 'corp_id' => $corp, 'parent_id' => 0], 'location');
@@ -101,14 +102,14 @@ final class WorkOrderCreate
             }
 
             if ($main !== null) {
-                $image = $this->image($main, $viewer, $settings, $corp);
+                $image = $images->choose($viewer, $settings, $corp, $main, true);
                 $entry = array_replace($entry, array_intersect_key($image, array_flip([
                     'image_big', 'image_default', 'image_slider', 'image_mid', 'image_small', 'image_mime',
                 ])));
             }
             $links = [];
             foreach ($additional as $id) {
-                $image = $this->image($id, $viewer, $settings, $corp);
+                $image = $images->choose($viewer, $settings, $corp, $id, true);
                 $links[] = ['image_big' => $image['image_big'], 'image_default' => $image['image_default']];
             }
 
@@ -165,20 +166,4 @@ final class WorkOrderCreate
         return $row;
     }
 
-    private function image(int $id, array $viewer, array $settings, int $corp): array
-    {
-        $row = $this->requireChoice('images', ['id' => $id], 'image');
-        if ((int) $row['user_id'] !== (int) $viewer['id']) {
-            if ((int) ($settings['file_manager_show_files'] ?? 0) !== 1) {
-                throw new DomainException('Select an image available in your Work Order scope.', 422);
-            }
-            $this->requireChoice('users', ['id' => $row['user_id'], 'corp_id' => $corp], 'image owner');
-        } elseif ((int) $viewer['corp_id'] !== $corp) {
-            throw new DomainException('Select an image from the selected corporation.', 422);
-        }
-        if (empty($row['image_default'])) {
-            throw new DomainException('Select an image with an available reference.', 422);
-        }
-        return $row;
-    }
 }

@@ -46,21 +46,24 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const media = path.join(runtime,'wo-media');
   const uploads = path.join(runtime,'wo-uploads');
   const accountMedia = path.join(runtime,'account-images');
-  if (mysql?.replies) {
-    for (const folder of ['profile','logo']) fs.mkdirSync(path.join(accountMedia,folder,'eworeb'),{recursive:true});
+  if (mysql?.replies || mysql?.create) {
+    if (mysql.replies) for (const folder of ['profile','logo']) fs.mkdirSync(path.join(accountMedia,folder,'eworeb'),{recursive:true});
     fs.mkdirSync(path.join(uploads,'images','eworeb'),{recursive:true});
     fs.mkdirSync(path.join(uploads,'audios','eworeb'),{recursive:true});
     fs.mkdirSync(path.join(media,'images'),{recursive:true});
     fs.writeFileSync(path.join(media,'images','fixture.png'), Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNQcEgAAAFEAMELjZZCAAAAAElFTkSuQmCC', 'base64'));
     fs.copyFileSync(path.join(media,'images','fixture.png'),path.join(media,'outside.png'));
+    if (mysql.create) fs.writeFileSync(path.join(runtime,'fixture-valid.png'), Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC','base64'));
   }
   const fixtureEnv=[
-    'CI_ENVIRONMENT = production', 'app.baseURL = '+origin+'/', 'ewo.workOrderWrites = '+Boolean(mysql?.replies), 'ewo.workOrderMediaRoot = '+(mysql?.replies ? media.replaceAll('\\','/') : ''),
-    'ewo.workOrderUploadRoot = '+(mysql?.replies ? uploads.replaceAll('\\','/') : ''),
+    'CI_ENVIRONMENT = production', 'app.baseURL = '+origin+'/', 'ewo.workOrderWrites = '+Boolean(mysql?.replies), 'ewo.workOrderMediaRoot = '+(mysql?.replies || mysql?.create ? media.replaceAll('\\','/') : ''),
+    'ewo.workOrderUploadRoot = '+(mysql?.replies || mysql?.create ? uploads.replaceAll('\\','/') : ''),
     'ewo.accountMediaRoot = '+(mysql?.replies ? accountMedia.replaceAll('\\','/') : ''),
     'ewo.masterDataWrites = '+Boolean(mysql?.replies), 'ewo.accountWrites = '+Boolean(mysql?.replies),
     'ewo.workOrderCreateWrites = '+Boolean(mysql?.create),
+    'knowledgebase.backend = '+(mysql?.create ? 'mysql' : 'json'),
     ...connection, 'session.savePath = "'+sessionPath+'"',
     'ewo.sessionKey = '+require('node:crypto').randomBytes(32).toString('hex'), 'session.cookieName = '+sessionName,
     'knowledgebase.directory = "'+path.join(runtime,'kb')+'"',
@@ -70,7 +73,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const prepend=path.join(runtime,'load-fixture.php');
   fs.writeFileSync(prepend, '<?php require '+JSON.stringify(dotenv)+'; (new CodeIgniter\\Config\\DotEnv(__DIR__))->load();');
   fs.writeFileSync(path.join(runtime,'php.ini'), [
-    'extension_dir="'+ext+'"','extension=intl','extension=mbstring','extension=sqlite3','extension=fileinfo', ...(mysql?.replies ? ['extension=gd'] : []),'upload_max_filesize=20M','post_max_size=22M', ...(mysql ? ['extension=mysqli'] : []),
+    'extension_dir="'+ext+'"','extension=intl','extension=mbstring','extension=sqlite3','extension=fileinfo', ...(mysql?.replies || mysql?.create ? ['extension=gd'] : []),'upload_max_filesize=20M','post_max_size=22M', ...(mysql ? ['extension=mysqli'] : []),
     'auto_prepend_file="'+prepend+'"',
   ].join('\n'));
   const env={...process.env,PHPRC:runtime,PHP_INI_SCAN_DIR:''};
@@ -190,7 +193,14 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   assert.equal(audit('snapshot'),before,'fixture Work Order rows remain identical');
   if (process.env.EWO_TEST_BROWSER) await require('./browser.cjs')(process.env.EWO_TEST_BROWSER,runtime,origin);
   if (!mysql?.replies && !mysql?.create) assert.equal(audit('snapshot'),before,'fixture Work Order rows remain identical');
-  if (mysql?.create) await require('./wo-create-assertions.cjs')(request, login, location, audit);
+  if (mysql?.create) {
+    await require('./wo-create-assertions.cjs')(request, login, location, audit, path.join(uploads,'images','eworeb'));
+    audit('scheduled-prepare');
+    const acceptance = phpRun([path.join(__dirname,'kb-and-scheduled-fixture.php'),runtime]);
+    assert.match(acceptance,/KB MySQL import: .* PASS/);
+    assert.match(acceptance,/Scheduled MySQL: .* PASS/);
+    console.log(acceptance.trim());
+  }
   if (mysql?.replies) {
     await require('./wo-reply-assertions.cjs')(request,login,location,audit,path.join(uploads,'audios','eworeb'));
     await require('./master-and-account-assertions.cjs')(request,login,location,audit);

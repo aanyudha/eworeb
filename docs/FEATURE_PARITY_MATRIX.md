@@ -19,12 +19,12 @@
 | My profile | Write verified on isolated MySQL | Cakupan akun sendiri. Email memerlukan password saat ini dan hanya dapat berubah saat email verification nonaktif. Avatar memerlukan GD dan penyimpanan privat. |
 | Change password | Write verified on isolated MySQL | Current password wajib dan hash baru kompatibel dengan login legacy. |
 | Application settings dan Visual Settings | Write verified on isolated MySQL | Timezone, field teks aktif, logo raster dan favicon PNG untuk login serta Workspace. Email Settings dan konfigurasi HTML masih tertunda. |
-| Create WO biasa | Enabled on development TCP 3310, writes verified on isolated MySQL | Dua kolom `DATETIME NULL DEFAULT NULL` telah diterapkan dan diverifikasi. Description opsional. Draft dan Publish, histori awal, relasi gambar melalui API, scope, CSRF, dan rollback lulus pada fixture. Pemilih gambar pada form dan notifikasi belum aktif. |
-| Scheduled | Blocked by schema | Kontrak `intervale`, histori jadwal dan cron belum terbukti. Create biasa tidak mengaktifkan Scheduled. |
+| Create WO biasa dan media | Enabled on development TCP 3310, writes verified on isolated MySQL | Description opsional, Draft/Publish, histori, pemilih utama dan tambahan, upload katalog privat saat root tersedia, validasi scope, CSRF dan rollback. Notifikasi subscriber tidak tersedia pada form aktif CI3. |
+| Scheduled | Recurrence implemented in isolation, runtime disabled | CI3 minute matching, status, assignment, tanggal kejadian dan histori. DDL `intervale` hanya untuk fixture. Penerimaan kebijakan data historis dan cron masih terbuka. |
 | Reports In dan Reports Out | Read-only working with limitation | Baris dan scope dari data aktual. Penanda subkategori tidak tersedia sama pada tabel, PDF, dan XLSX. Hasil ini tidak menetapkan paritas lengkap dengan Jasper. |
 | Edit gallery dan ordered list | Blocked by schema | Tabel relasi item CI3 tidak tersedia pada schema aktif. |
 | Edit metadata audio dan video | Not yet migrated | Source CI3 memiliki view. Jalur lokal memakai post_type yang seluruhnya post. Detail audio baru sebatas lampiran. |
-| Knowledge Center dan editor | Fully working | JSON existing. Publikasi, CSRF, akses publik dan navigasi lulus di fixture. |
+| Knowledge Center dan editor | MySQL verified in isolation, development cutover pending | `kb_articles` terpisah dengan visibilitas, revisi, draft, publikasi, relasi terurut dan URL existing. Pengembangan tetap JSON sambil menunggu persetujuan eksplisit yang diminta auto-review. |
 
 Operasi tulis di atas diuji pada MySQL terisolasi. Hanya sakelar Create aktif pada pengembangan `eworeb` TCP 3310.
 

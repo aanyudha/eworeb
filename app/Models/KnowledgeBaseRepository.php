@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use CodeIgniter\Database\BaseConnection;
+use Config\Database;
 use DateTimeImmutable;
 use DateTimeZone;
 use DomainException;
 use InvalidArgumentException;
 use RuntimeException;
+use Throwable;
 
 final class KnowledgeBaseRepository
 {
@@ -21,9 +24,19 @@ final class KnowledgeBaseRepository
 
     private const MAX_STORAGE_BYTES = 32 * 1024 * 1024;
     private readonly string $directory;
+    private readonly ?BaseConnection $db;
 
-    public function __construct(?string $directory = null)
+    public function __construct(?string $directory = null, ?BaseConnection $db = null)
     {
+        $backend = $directory !== null ? 'json' : config('KnowledgeBase')->backend;
+        $this->db = $db ?? match ($backend) {
+            'json' => null,
+            'mysql' => Database::connect('ewo'),
+            default => throw new RuntimeException('Unknown Knowledge Base storage backend.'),
+        };
+        if ($this->db !== null) {
+            return;
+        }
         $requested = $directory ?? config('KnowledgeBase')->directory;
         $parent = realpath(dirname($requested));
         $web = realpath(FCPATH);
@@ -46,7 +59,7 @@ final class KnowledgeBaseRepository
 
     public function articles(bool $public): array
     {
-        $articles = $this->read();
+        $articles = $this->db === null ? $this->read() : $this->readDatabase($public);
         if ($public) {
             $articles = array_filter($articles, static fn (array $article): bool =>
                 $article['status'] === 'published' && $article['visibility'] === 'public');
@@ -209,8 +222,110 @@ final class KnowledgeBaseRepository
         }
     }
 
+    private function readDatabase(bool $public = false): array
+    {
+        $query = $this->db->table('kb_articles');
+        if ($public) {
+            $query->where(['status' => 'published', 'visibility' => 'public']);
+        }
+        $articles = [];
+        foreach ($query->get()->getResultArray() as $row) {
+            try {
+                $content = json_decode($row['content'], true, 16, JSON_THROW_ON_ERROR);
+            } catch (\JsonException $error) {
+                throw new RuntimeException('Knowledge Base article data is unavailable.', 0, $error);
+            }
+            unset($row['content']);
+            $articles[$row['id']] = $row + $content;
+        }
+        return $articles;
+    }
+
+    private function databaseRow(array $article): array
+    {
+        $keys = array_flip(['id', 'slug', 'status', 'visibility']);
+        return array_intersect_key($article, $keys) + [
+            'content' => json_encode(array_diff_key($article, $keys), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+        ];
+    }
+
+    public function importFromJson(self $source): array
+    {
+        if ($this->db === null || $source->db !== null) {
+            throw new RuntimeException('The import requires JSON source and MySQL destination.');
+        }
+        $expected = $source->articles(false);
+        $public = $source->articles(true);
+        return $this->databaseTransaction(function () use ($expected, $public): array {
+            if ($this->readDatabase() === []) {
+                foreach ($expected as $article) {
+                    if (!$this->db->table('kb_articles')->insert($this->databaseRow($article))) {
+                        throw new RuntimeException('Could not import the Knowledge Base.');
+                    }
+                }
+            }
+            $fingerprint = self::fingerprint($expected);
+            if (self::fingerprint($this->articles(false)) !== $fingerprint
+                || self::fingerprint($this->articles(true)) !== self::fingerprint($public)) {
+                throw new RuntimeException('Knowledge Base import parity differs.');
+            }
+            return ['articles' => count($expected), 'public' => count($public), 'sha256' => $fingerprint];
+        });
+    }
+
+    private static function fingerprint(array $articles): string
+    {
+        foreach ($articles as &$article) {
+            ksort($article);
+        }
+        return hash('sha256', json_encode($articles, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
+    }
+
+    private function databaseTransaction(callable $change): array
+    {
+        if ($this->db->DBDriver !== 'MySQLi') {
+            throw new RuntimeException('Knowledge Base storage requires MySQL.');
+        }
+        $lock = 'ewo-kb-' . hash('sha224', $this->db->getDatabase());
+        if ((int)$this->db->query('SELECT GET_LOCK(?, 5) AS acquired', [$lock])->getRowArray()['acquired'] !== 1) {
+            throw new RuntimeException('Knowledge Base storage is busy.');
+        }
+        try {
+            $this->db->transException(true);
+            if (!$this->db->transBegin()) {
+                throw new RuntimeException('Could not start the Knowledge Base transaction.');
+            }
+            try {
+                $result = $change();
+                if (!$this->db->transStatus() || !$this->db->transCommit()) {
+                    throw new RuntimeException('Could not commit the Knowledge Base transaction.');
+                }
+                return $result;
+            } catch (Throwable $error) {
+                $this->db->transRollback();
+                throw $error;
+            }
+        } finally {
+            $this->db->query('SELECT RELEASE_LOCK(?)', [$lock]);
+        }
+    }
+
     private function mutate(callable $change): array
     {
+        if ($this->db !== null) {
+            return $this->databaseTransaction(function () use ($change): array {
+                $articles = $this->readDatabase();
+                $existing = $articles;
+                $result = $change($articles);
+                $query = $this->db->table('kb_articles');
+                $row = $this->databaseRow($result);
+                $saved = isset($existing[$result['id']]) ? $query->where('id', $result['id'])->update($row) : $query->insert($row);
+                if (!$saved) {
+                    throw new RuntimeException('Could not save the article.');
+                }
+                return $result;
+            });
+        }
         if (!is_dir($this->directory) && !@mkdir($this->directory, 0700) && !is_dir($this->directory)) {
             throw new RuntimeException('Knowledge Base storage is unavailable.');
         }
@@ -226,6 +341,11 @@ final class KnowledgeBaseRepository
         try {
             if (!flock($lock, LOCK_EX)) {
                 throw new RuntimeException('Knowledge Base storage is unavailable.');
+            }
+            $cutover = $this->directory . DIRECTORY_SEPARATOR . '.mysql-cutover';
+            clearstatcache(true, $cutover);
+            if (is_file($cutover) || is_link($cutover)) {
+                throw new RuntimeException('The JSON Knowledge Base is sealed for MySQL cutover.');
             }
             $articles = $this->read();
             $result = $change($articles);

@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 
-module.exports = async function testCreate(request, login, location, audit) {
+module.exports = async function testCreate(request, login, location, audit, uploadDirectory) {
   const endpoint = '/api/v1/work-orders/create';
   const counts = () => JSON.parse(audit('create-counts'));
   const current = async () => {
@@ -22,6 +23,7 @@ module.exports = async function testCreate(request, login, location, audit) {
   assert.equal((await submit({ title: 'Guest' }, await loginToken()))[0], 401);
   assert.equal(location(await login('no-add-post@example.test', 'fixture-password')), '/workspace');
   assert.equal((await submit({ title: 'Missing add_post' }, await loginToken()))[0], 403);
+  assert.equal((await request(endpoint+'/images')).status, 403);
   assert.deepEqual(counts(), initial);
   await request('/logout');
 
@@ -29,6 +31,36 @@ module.exports = async function testCreate(request, login, location, audit) {
   let preview = await current();
   assert.equal(preview.reason, null);
   assert.equal(preview.canChooseScope, false);
+  const catalog = await (await request(endpoint+'/images?corp_id=2')).json();
+  assert.equal(catalog.canUpload, true);
+  assert.deepEqual(catalog.items.map(row=>row.id).filter(id=>id<=3), [2,1]);
+  assert.equal((await request(endpoint+'/images/3?corp_id=2')).status, 404);
+
+  async function upload(bytes, name) {
+    const data = new FormData();
+    data.append('corp_id', '2');
+    data.append('image', new Blob([bytes]), name);
+    return request(endpoint+'/images',data,{ headers:{'X-CSRF-TOKEN':(await current()).submission.csrf.hash} });
+  }
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAAElFTkSuQmCC','base64');
+  const imageBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC','base64');
+  assert.equal((await upload(png,'invalid.png')).status,422);
+  assert.equal((await upload(imageBytes,'mismatch.jpg')).status,422);
+  const beforeUpload = fs.readdirSync(uploadDirectory).length;
+  const uploaded = await upload(imageBytes,'fixture.png');
+  assert.equal(uploaded.status,201,await uploaded.clone().text());
+  const uploadedId = (await uploaded.json()).id;
+  assert.equal(fs.readdirSync(uploadDirectory).length,beforeUpload+5);
+  const thumb = await request(endpoint+'/images/'+uploadedId+'?corp_id=2');
+  assert.equal(thumb.status,200);
+  assert.match(thumb.headers.get('content-type'),/image\/jpeg/);
+  const gif = Buffer.from('R0lGODlhAQABAPAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==','base64');
+  const gifUpload = await upload(gif,'fixture.gif');
+  assert.equal(gifUpload.status,201,await gifUpload.clone().text());
+  const gifPreview = await request(endpoint+'/images/'+(await gifUpload.json()).id);
+  assert.equal(gifPreview.status,200);
+  assert.match(gifPreview.headers.get('content-type'),/image\/gif/);
+  assert.deepEqual(Buffer.from(await gifPreview.arrayBuffer()),gif,'GIF bytes must be preserved');
   const values = {
     title: '  Create fixture work order  ', summary: 'Initial description',
     status: '1', location_id: '1', sublocation_id: '3', role_id: String(preview.destinationRoles[0].id),
@@ -96,6 +128,9 @@ module.exports = async function testCreate(request, login, location, audit) {
   assert.equal((await submit(values, (await current()).submission.csrf.hash))[0], 503);
   assert.deepEqual(counts(), committed);
   audit('restore-create-history');
+  audit('refuse-catalog-image');
+  assert.equal((await upload(imageBytes,'no-row.png')).status,503);
+  assert.equal(fs.readdirSync(uploadDirectory).length,beforeUpload+6,'Rejected image metadata must not leave rendition files');
   audit('refuse-create-image');
   assert.equal((await submit(values, (await current()).submission.csrf.hash))[0], 503);
   assert.deepEqual(counts(), committed);
